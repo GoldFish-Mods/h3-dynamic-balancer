@@ -1,0 +1,292 @@
+ZVSE2
+; проблемы:
+; не учитывает гарнизоны из которых нельзя забирать существ
+; ручной контроль массивов, перевести на SN:F^ExtendArrayLifetime^ ?
+
+
+
+; Bug Fixes ----------------------
+
+
+; ---------------------------------
+; 4.4.2 FU(h3db_StartHeroesCombat) -> (winnerSide) =-1 (battle error state)
+; 4.4.2 compatibility fix: 760 - achievements
+
+; Master Build Info --------------
+
+!#DC(H3DB_VERSION) = 1;
+!#VRs^h3db_sVer^:S^0.1a^;
+
+
+!#DC(H3DB_BUILD_ID_A) = 5;  [Внутренний номер части скрипта]
+
+!#DC(H3DB_ISTESTING) = 1;  [displaying debug data in a release build]
+
+; ---------------------------------
+
+!#VRi^h3db_ver^:S(H3DB_VERSION);
+!#VRs^h3db_PluginVersion^:S^0^;
+!#VRs^h3db_BuildID^:S^^;
+!#VRi^h3db_LOG^:S0;
+!#VRi^h3db_isOn^:S0;
+
+!?FU(OnAfterErmInstructions);
+!!VRs^h3db_BuildID^:S^Build ID: %(H3DB_BUILD_ID_A).%(H3DB_BUILD_ID_B).%(H3DB_BUILD_ID_C)^;
+!!VRi^h3db_LOG^:S(H3DB_LOG);
+!!VRi^h3db_ON^:S1;
+!!UN:P760/?i^h3db_OpAchievStatus^;
+!!FU(h3db_GetPluginVersion):P?s^h3db_PluginVersion^;
+!!FU(h3db_WriteLog):P;    ; START LOG
+!!FU(h3db_WriteLog):P^(H3DB_START_FROM_DAY) = %(H3DB_START_FROM_DAY)^;
+!!FU(h3db_ResetAiHistory):P;
+!!FU(h3db_ResetAiResourceModifiers):P;
+
+; ------------------------------
+; File Log logic ---------------
+
+!?FU(WOG_EndOfTurn)&i^h3db_ON^=1/i^timerDay^>=(H3DB_START_FROM_DAY)/i^timerIsAi^=1;
+!!FU(h3db_SaveAiResources):Pi^timerOwner^;
+*!IF:L^WOG_EndOfTurn^;
+
+!?FU(WOG_EndOfTurn)&i^h3db_ON^=1/i^timerDay^>=(H3DB_START_FROM_DAY)/i^timerIsAi^=0;
+  !!if&i^h3db_LOG^>0;
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^###  change of day ... ###^/1;
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^AI ROUND - DAY %i(timerDay)^/1;
+!!en;
+
+
+
+; ФУНКЦИЯ КОРРЕКЦИИ ПРИРОСТА РЕСУРСОВ ВСЕХ ИИ ПО ИХ ПЕРСОНАЛЬНЫМ МОДИФИКАТОРАМ
+
+!?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^=1/i^timerIsAi^=0;
+!!IF&(H3DB_ISTESTING)=1:L^[H3 Dynamic Balancer] - STARTED!    |  mod ver: %s(h3db_sVer)  |  %s(h3db_BuildID)  |  logType: %i(h3db_LOG)  |  PluginVer: %s(h3db_PluginVersion) (required 0.9.2)^;
+
+!?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^>=(H3DB_START_FROM_DAY)/i^timerDay^>1;
+!!if&i^h3db_LOG^>0;
+  !!OW:C?(currentPlayer:y);  
+
+  !!if&i^timerIsAi^;
+    !!VR(aiInfo:z):S^   PLAYER %(currentPlayer) turn...^;
+    !!FU(h3db_WriteLog):P(aiInfo)/1;
+  !!el;
+
+
+    !!FU(h3db_WriteLog)&i^h3db_LOG^=4:P;
+    !!FU(h3db_WriteLog):P^^;
+    !!FU(h3db_WriteLog):P^ ########################################################^;
+    !!FU(h3db_WriteLog):P^^;
+    !!FU(h3db_WriteLog):P^HUMAN ROUND - new DAY %i(timerDay)   >>> LOG TYPE %i(h3db_LOG) <<<^/1;
+    !!FU(h3db_WriteLog):P^   PLAYER %(currentPlayer) turn...^/1;
+    !!FU(h3db_ProcessAiResources)&i^timerIsAi^=0:P;
+    *!FU(FreezeScreen):P;
+    *!UN:R7/1/1; 
+    !!FU(h3db_BattleEmulator):P;
+    *!UN:R7/0/0; 
+    *!FU(UnfreezeScreen):P;
+  !!en;
+!!en;
+
+
+*!IF&i^timerIsAi^=0:L^OnEveryDay^;
+
+
+*!IF:L^ai 0  %(finalRes)^;
+
+
+
+
+; File Log logic END ---------------
+; ----------------------------------
+
+
+
+; --------------------------------------------
+; FOR DEBUG Y KEY EVENT   (delete this code)
+!?FU(OnKeyPressed);
+!#VA(key:x);
+!!VRi^key2^:S(key);
+!?FU(OnKeyReleased);
+!#VA(key:x);
+!!VRi^key2^&(key)=89:S0;
+; FOR DEBUG  END ------------------------------
+
+
+!?FU(OnAdventureMapLeftMouseClick)&i^key2^=89/(H3DB_DEBUG)=1; / Y key
+!!FU(h3db_ResetAiHistory):P;
+!!FU(h3db_ResetAiResourceModifiers):P;
+!!VRi^h3db_LOG^:S1;
+!!IF:M^players data has been cleaned !^;
+
+
+!?FU(OnAdventureMapLeftMouseClick)&i^key_ctrl^/i^timerIsAi^=0/999/(H3DB_DEBUG)=1;
+
+
+
+*!IF:M^= %(str)^;
+*!FU(h3db_WriteLog):P^text^;
+; OFF
+!!FU:E;
+
+
+!?FU(h3db_BattleEmulator);
+!!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^START FAKE COMBAT...^/1;
+!!VR(combiningArmy:y):S1;
+
+; Инициализируем переменную для героя человека (по умолчанию -1, если нет героя)
+!!VR(humanHero:y):S-1;
+
+; 1. Глобальный снимок карты для логгера (без изменений, содержит всех героев)
+!!FU(h3db_SavePlayersArmyState):P?(armyBefore:y);
+
+!!FU(NewIntArray):P0/0/?(sourcesArr:y)/(M_STORED);
+!!FU(NewIntArray):P0/0/?(heroTownsArr:y)/(M_STORED);
+!!FU(NewIntArray):P0/0/?(armyBackup:y)/(M_STORED);
+
+; 2. Новый массив ТОЛЬКО для сильнейших героев ИИ (Чемпионов)
+!!FU(NewIntArray):P0/0/?(aiChampionsArr:y)/(M_STORED);
+!!FU(h3db_WriteLog):P^^;
+
+; ==============================================================================
+; ЭТАП 1: Поиск чемпионов, бэкапы и слияние армий
+; Проходим по всем игрокам ровно один раз
+; ==============================================================================
+!!re (currPlayer:y)/0/(PLAYER_LAST);
+  ; Получаем сразу и статус ИИ, и статус "жив/мертв" (has_lost)
+  !!OW:I(currPlayer)/?(isAi:y)/?(isDead:y);
+  
+  ; Проверяем, что игрок еще жив
+  !!if&(isDead)=0;
+    !!FU(h3db_PlayerId_GetMostPowerfullHeroId):P(currPlayer)/?(strongestHeroId:y);
+    
+    !!if&(strongestHeroId)>-1;
+      
+      ; Если это человек - запоминаем его героя в переменную
+      !!if&(isAi)=0;
+        !!VR(humanHero):S(strongestHeroId);
+      ; Если это ИИ - пушим его героя в наш новый массив чемпионов
+      !!el;
+        !!FU(Array_Push):P(aiChampionsArr)/(strongestHeroId);
+      !!en;
+      
+      ; Делаем бэкап и слияние
+      !!FU(h3db_CreateArmyBackup):P(strongestHeroId)/(armyBackup);
+      !!VR(heroSlot:y):S-1;
+      !!VR(townId:y):S-1;
+      !!if&(combiningArmy)=1;
+        !!FU(h3db_CombiningPlayerArmy):P(currPlayer)/(strongestHeroId)/(sourcesArr)/?(heroSlot)/?(townId);
+      !!en;
+      !!FU(Array_Push):P(heroTownsArr)/(strongestHeroId)/(heroSlot)/(townId);
+    !!en;
+  !!en;
+!!en;
+
+; ==============================================================================
+; ЭТАП 2: Логирование (используем глобальный массив armyBefore)
+; ==============================================================================
+!!if&i^h3db_LOG^>0;
+  *!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^?  STATE BEFORE FAKE COMBAT:^/1;
+  !!FU(h3db_LogPlayersStateDiff):P(armyBefore)/(sourcesArr)/(heroTownsArr);
+!!el;
+  !!SN:M(armyBefore);
+  !!SN:M(sourcesArr);
+  !!SN:M(heroTownsArr);
+!!en;
+
+; ==============================================================================
+; ЭТАП 3: Серия боёв (Человек против Чемпионов ИИ)
+; ==============================================================================
+; Проверка безопасности: бои идут только если у человека есть герой
+!!if&(humanHero)>-1;
+  !!SN:M(aiChampionsArr)/?(champsCount:y);
+  !!VR(lastIdx:y):S(champsCount) -1;
+
+  ; Если есть хотя бы один чемпион ИИ в турнирной сетке
+  !!if&(lastIdx)>=0;
+    !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^^;
+
+    !!re (idx:y)/0/(lastIdx);
+      ; 1. Извлекаем чемпиона ИИ из массива турнирной сетки и узнаем его владельца
+      !!SN:M(aiChampionsArr)/(idx)/?(aiHero:y);
+      !!HE(aiHero):O?(heroOwner:y);
+
+      !!if&i^h3db_LOG^>0;
+        !!FU(GetTextFileString):P^plcolors.txt^/(heroOwner)/?(heroOwnerStr:z);
+        !!HE(aiHero):B0/?(heroName:z);
+        !!FU(h3db_WriteLog):P^COMBAT: start  -  HUMAN vs %(heroOwnerStr) _ (%(heroName)) _^/1;
+      !!en;
+      ; формируем тип земли для битвы на ней
+      !!TR0/0/0:T?(type:y)/?(sub:y)/?(riv:y)/?(rivDir:y)/?(road:y)/?(roadDir:y)/?(magic:y)/?(flags:y);
+      !!TR0/0/0:T1/0/0/0/0/0/0/0;
+      ; 2. Проводим эмуляцию боя
+      !!UN:P760/0;
+      !!FU(h3db_StartHeroesCombat):P(humanHero)/(aiHero)/0/0/0/(H3DB_ALLOW_MAGIC)/(H3DB_BLOCK_RETREAT)/(H3DB_NO_SPECIAL_TERRAIN)/?(winnerSide:y);
+      !!UN:P760/i^h3db_OpAchievStatus^;
+      !!TR0/0/0:T(type)/(sub)/(riv)/(rivDir)/(road)/(roadDir)/(magic)/(flags);
+      ; Защита: пропускаем шаг, если эмуляция завершилась сбоем
+      !!if|(winnerSide)=(H3DB_SIDE_WINNER_COMBAT_FAILED)/(winnerSide)=(H3DB_SIDE_WINNER_DRAW);
+        !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^^;
+        !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^[ERROR]     FAKE COMBAT: FAILED  result: %(winnerSide)^;
+        !!co;
+      !!en;
+
+      ; 3. Определяем победившего героя
+      !!if&(winnerSide)=(BATTLE_LEFT);
+        !!VR(winnerHero:y):S(humanHero);
+      !!el;
+        !!VR(winnerHero:y):S(aiHero);
+      !!en;
+      !!if|i^h3db_LOG^=2/i^h3db_LOG^=-2;
+        !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^            COMBAT: process..  (output result to dialog)^;
+      !!el;
+        !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^            COMBAT: process..^;
+      !!en;
+
+      ; 4. Оцениваем тактическое преимущество по итогам боя
+      !!FU(h3db_GetEvaluatedCombatAdvantage):P(winnerSide)/(heroOwner)/(winnerHero)/?(overbalanceMag:y)/?(overbalanceSide:y);
+
+      ; 5. Корректируем перевес стратегическими факторами (артефакты / заклинания)
+      *!FU(h3db_ApplyStrategicAdvantage):P(humanHero)/(aiHero)/(overbalanceMag)/(overbalanceSide)/?(finalMag:y)/?(finalSide:y);
+      !!VR(finalMag:y):S(overbalanceMag);  ВРЕМЕННО ПЕРЕКИДЫВАЕМ МАГНИТУДУ ПОКА НЕ ИСПОЛЬУЕМ ApplyStrategicAdvantage
+      !!VR(finalSide:y):S(overbalanceSide);
+
+      ; 6. Сглаживаем величину перевеса (персональное окно истории ИИ за 3 дня)
+      !!FU(h3db_SmoothOverbalance):P(aiHero)/(finalMag:y)/(finalSide:y)/?(smoothedMag:y);
+
+      !!VR(smoothedMag): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
+
+      ; 7. Применяем штрафы или бонусы к экономике, опыту, ходу и мане ИИ
+      !!FU(h3db_ApplyAIDifficultyMod):P(aiHero)/(smoothedMag)/(finalSide);
+
+      !!if&i^h3db_LOG^=-1;
+        !!HE(aiHero):O?(aiColor:y);
+        !!FU(GetTextFileString):P^plcolors.txt^/(aiColor)/?(aiSideStr:z);
+        !!HE(winnerHero):B0/?(heroName:z) O?(winColor:y);
+        !!FU(GetTextFileString):P^plcolors.txt^/(winColor)/?(winSideStr:z);
+        !!IF:M^{~83E7FFFF}PLAYER{~} vs {%(aiSideStr)} WIN: {~83E7FFFF}%(winSideStr){~}%T(era.endl)HERO (winner): {~83E7FFFF}%(heroName){~} side: {%(overbalanceSide)}
+        %T(era.endl)MAGnitude: {%(overbalanceMag)}%T(era.endl)MAG Smooth: {%(smoothedMag)}^;
+      !!el&i^h3db_LOG^>0;
+        !!VR(logMag:y)&(finalSide)=0:S0 -(smoothedMag);
+        !!VR(logMag)&(finalSide)=1:S(smoothedMag);
+        !!FU(h3db_WriteLog):P^            MAG Smooth: %(logMag)^;
+      !!en;
+
+      !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^^;
+    !!en;
+  !!en;
+!!en;
+
+!!if&i^h3db_LOG^>0;
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^FAKE COMBAT: DONE^/1;
+!!en;
+
+; 8. Восстанавливаем резервную копию армий (всегда выполняется вне зависимости от исхода боев)
+!!FU(h3db_RestoreArmyBackup):P(armyBackup);
+!!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^RestoreArmyBackup: DONE^/1;
+
+
+
+

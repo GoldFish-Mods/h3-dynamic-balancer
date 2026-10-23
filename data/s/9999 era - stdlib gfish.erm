@@ -1,0 +1,97 @@
+ZVSE2
+
+
+!?FU(WriteLogToFile);
+; write a string to the file
+; Example:
+; P^Runtime\1.txt^ / ^My log text^ / 1;  (Overwrite)
+; P^Runtime\1.txt^ / ^My log text^;      (Append)
+; P^Runtime\1.txt^;                      (Clear file and write "--- Start New Log ---")
+
+!#VA(filePathRef:x) (msgRef:x) (mode:x);
+
+!!FU:A?(numArgs:y);
+
+!!if&(numArgs)<1;
+  !!SN:F^ShowErmError^/^WriteLogToFile: invalid arguments number. Expected at least 1 arguments^;
+  !!FU:E;
+!!en;
+
+; Default (OPEN_ALWAYS / Append)
+!!VR(creationDisp:y):S4;
+
+!!if&(numArgs)>=3;
+  !!VR(creationDisp)&(mode)=1:S2;
+!!en;
+
+!!if&(numArgs)=1;
+  !!VR(creationDisp):S2;
+!!en;
+
+!!VR(msgLen:y):S0;
+!!if&(numArgs)>=2;
+  !!SN:Kz(msgRef)/?(msgLen);
+!!en;
+
+!!SN&(creationDisp)=2:F^CreateFileA^ / z(filePathRef) / 4 / 3 / 0 / 2 / 128 / 0; ; Mode 2 (CREATE_ALWAYS): fully clear file before writing
+!!SN&(creationDisp)=4:F^CreateFileA^ / z(filePathRef) / 4 / 3 / 0 / 4 / 128 / 0; ; Mode 4 (OPEN_ALWAYS): append keeping old text
+!!VR(hFile:y):Sv1;
+
+; ... (начало вашей функции остается прежним, открытие файла)
+
+!!if&(hFile)<>-1;
+    !!VR(bytesWritten:y):S0;
+
+    ; === БЛОК ЗАПИСИ BOM-МАРКЕРА (только для новых файлов) ===
+    ; Чтобы Notepad++ сразу понимал, что это UTF-8, в самое начало пустого файла
+    ; нужно записать невидимый маркер BOM (байт-код EF BB BF).
+  !!if&(creationDisp)=2;
+        !!VR(bom:y):S12565487; ; Правильный BOM-маркер UTF-8 с учетом Little Endian
+        !!SN:F^WriteFile^ / (hFile) / ?(bom) / 3 / ?(bytesWritten) / 0;
+    !!en;
+
+    !!if&(numArgs)=1;
+        !!VR(startLogMsg:z):S^--- Start New Log ---^; 
+        !!SN:K(startLogMsg)/?(msgLen);
+        !!SN:F^WriteFile^ / (hFile) / (startLogMsg) / (msgLen) / ?(bytesWritten) / 0;
+    !!el;
+        ; === БЛОК КОНВЕРТАЦИИ В UTF-8 ===
+        !!if&(msgLen)>0;
+            ; Выделяем память под буферы. UTF-8 строка может быть до 2 раз длиннее исходной
+            !!VR(memSize:y):S(msgLen) * 3 + 10; 
+            
+            ; Выделяем память под UTF-16 (возвращает указатель в v1)
+            !!SN:F^GlobalAlloc^ / 64 / (memSize); 
+            !!VR(ptrUTF16:y):Sv1;
+            
+            ; Выделяем память под UTF-8
+            !!SN:F^GlobalAlloc^ / 64 / (memSize); 
+            !!VR(ptrUTF8:y):Sv1;
+
+            ; Шаг 1: Windows-1251 (CodePage 1251) -> UTF-16
+            ; Функция вернет длину строки в символах в v1
+            !!SN:F^MultiByteToWideChar^ / 1251 / 0 / z(msgRef) / (msgLen) / (ptrUTF16) / (memSize);
+            !!VR(utf16Len:y):Sv1;
+
+            ; Шаг 2: UTF-16 -> UTF-8 (CodePage 65001)
+            ; Функция вернет итоговую длину строки в байтах в v1
+            !!SN:F^WideCharToMultiByte^ / 65001 / 0 / (ptrUTF16) / (utf16Len) / (ptrUTF8) / (memSize) / 0 / 0;
+            !!VR(utf8Len:y):Sv1;
+
+            ; Записываем сконвертированную строку из памяти в файл
+            !!SN:F^WriteFile^ / (hFile) / (ptrUTF8) / (utf8Len) / ?(bytesWritten) / 0;
+
+            ; Обязательно освобождаем память, чтобы не было утечек
+            !!SN:F^GlobalFree^ / (ptrUTF16);
+            !!SN:F^GlobalFree^ / (ptrUTF8);
+        !!en;
+    !!en;
+
+    ; Write line break (\r\n) at the very end
+    !!VR(crlf:y):S2573;
+    !!SN:F^WriteFile^ / (hFile) / ?(crlf) / 2 / ?(bytesWritten) / 0;
+
+    ; Close file
+    !!SN:F^CloseHandle^ / (hFile);
+!!el;
+; ... (конец вашей функции)

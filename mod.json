@@ -1,0 +1,35 @@
+{
+    "caption": {
+        "Cn_Simp": "",
+        "en_US": "H3 Dynamic Balancer",
+        "ru_RU": "H3 Dynamic Balancer"
+    },
+    "description": {
+        "full": {
+            "Cn_Simp": "",
+            "en_US": "description_en.md",
+            "ru_RU": "description_ru.md"
+        },
+        "short": {
+            "Cn_Simp": "",
+            "en_US": "Dynamic AI difficulty and resource income balancing.",
+            "ru_RU": "Динамическая балансировка сложности и прироста ресурсов ИИ."
+        }
+    },
+    "author": "GoldFish, daemon_n",
+    "homepage": "https://discord.com/channels/665742159307341827/1563319955087167559",
+    "icon": {
+        "file": "h3db.ico",
+        "index": 0
+    },
+    "mod_version": "0.1.0",
+    "priority": 10,
+    "compatibility": {
+        "class": "default",
+        "entries": {}
+    },
+    "platform": "era",
+    "info_version": "1.0",
+    "plugins": {},
+    "category": "gameplay"
+}

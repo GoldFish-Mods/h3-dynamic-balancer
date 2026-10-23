@@ -1,0 +1,18 @@
+ZVSE2
+
+!#DC(H3DB_LOG) = 0;   [log type -2...5] 5 default
+
+; Game logic Modifers --------------
+
+
+!#DC(H3DB_MIN_RES_FOR_REDUCE) = 15;
+
+!#DC(H3DB_START_FROM_DAY) = 10;   
+
+!#DC(ADJUSTMENT_AMOUNT) = 0;  [-100 (приимущество человека)... 100 (приимущество ИИ) ]
+
+; ---------------------------------
+
+
+
+!#DC(H3DB_DEBUG) = 0; 

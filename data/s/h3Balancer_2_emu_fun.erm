@@ -1,0 +1,57 @@
+ZVSE2
+
+!#DC(H3DB_BUILD_ID_C) = 2;
+
+!#DC(H3DB_ALLOW_MAGIC) = 0;                      [используется, чтобы разрешить магию в бою]
+!#DC(H3DB_BLOCK_MAGIC) = 1;                      [используется, чтобы запретить магию в бою]
+
+!#DC(H3DB_ALLOW_RETREAT) = 0;                    [используется, чтобы разрешить сбегать из боя]
+!#DC(H3DB_BLOCK_RETREAT) = 1;                    [используется, чтобы запретить сбегать из боя]
+
+!#DC(H3DB_NO_SPECIAL_TERRAIN) = -1;              [тип земли по умолчанию]
+
+!#DC(H3DB_PLAYER_HERO_ATTACKS) = (BATTLE_LEFT);  0 [используется, когда игрок атакует]
+!#DC(H3DB_PLAYER_HERO_DEFENDS) = (BATTLE_RIGHT); 1 [используется, когда игрок защищается]
+
+; инициализируем константы результата битвы
+!#DC(H3DB_SIDE_WINNER_COMBAT_FAILED) = -2;
+!#DC(H3DB_SIDE_WINNER_DRAW) = -1;
+
+
+!?FU(h3db_StartHeroesCombat)&i^h3db_StartCombatEmulatorFuPtr^;
+!#VA(heroA:x) (heroD:x) (x:x) (y:x) (z:x) (magicFlag:x) (retreatFlag:x) (customTerrain:x) (result:x);
+!!VR(result:x):S(H3DB_SIDE_WINNER_COMBAT_FAILED);
+!!FU:A?(argsNum:y);                     [получить кол-во аргументов]
+!!FU&(argsNum)<8:E;                     [выйти из ф-ции, если менше 5]
+!!FU|(x)<0/(y)<0/(z)<0:E;
+!!if&(heroA)>-1/(heroD)>-1;             [если оба героя есть]
+  !!VR(retreatFlag):B;
+  !!VR(magicFlag):B;
+  !!HE(heroA):Z?(heroAp:y);             [получить указатели на героев]
+  !!HE(heroD):Z?(heroDp:y);
+  !!SN:Ei^h3db_StartCombatEmulatorFuPtr^/(CALLCONV_STDCALL)/(heroAp)/(heroDp)/(x)/(y)/(z)/(magicFlag:x)/(retreatFlag:x)/(customTerrain:x); [вызов ф-ции]
+  !!VR(result:x):Sv1;                   [возвращаем успех ф-ции]
+!!en;
+
+
+;при заходе в игру получаем адрес ф-ции из плагина
+!?FU(OnGameEnter);
+!!FU(h3db_GetPluginFunction):P^Utils_CombatEmulator.era^/^StartCombatEmulator^/?(function:y);
+!!FU&(function)=0:E;
+!!VRi^h3db_StartCombatEmulatorFuPtr^:S(function);
+
+!?FU(h3db_GetPluginFunction);
+!#VA(pluginName:x) (functionName:x) (result:x);
+
+!!VR(result:x):S(NULL);
+!!SN:F^GetModuleHandleA^/z(pluginName);
+!!VRp:Sv1;
+!!if&p;
+  !!SN:Ap/z(functionName)/?(result);
+  !!if&(result)=0;
+    !!SN:Ap/^_%z(functionName)^/?(result);
+    !!if&(result)=0;
+      !!SN:Ap/^_%z(functionName)@32^/?(result);
+    !!en;
+  !!en;
+!!en;

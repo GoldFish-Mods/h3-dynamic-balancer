@@ -1,0 +1,1293 @@
+ZVSE2
+
+!#DC(H3DB_BUILD_ID_B) = 5;
+  ; ----------------------------------------------------
+
+  ;                     FUNCTIONS
+
+
+!?FU(h3db_CombiningPlayerArmy);
+!#VA(player:x) (hero:x) (sourcesArr:x) (heroSlot:x) (townId:x);
+; (heroSlot) дополнительно вычисляет слот в замке если он там сидит, только для отладки
+; (townId) вычисляет id города в котором сидит герой, только для отладки
+!!VR(heroSlot):S-1;
+!!VR(townId):S-1;
+
+!!if&(hero)>-1/(player)>-1;
+
+  ; 1. Поиск ЗАМКОВ (тип 98) — Сканируем карту 1-й раз
+  !!VR(x:y):S-1; 
+  !!re i;
+    !!UN:U98/-1/-1/(x)/(y:y)/(z:y);
+    !!br&(x)<0; 
+    !!CA(x)/(y)/(z):O?(townOwner:y);
+    !!if&(townOwner)=(player);
+      !!CA(x)/(y)/(z):H0/?(garrisonHero:y) H1/?(visitingHero:y);
+      !!if&(garrisonHero)=(hero);
+        !!VR(heroSlot):S0;
+        !!CA(x)/(y)/(z):U?(townId);
+      !!el&(visitingHero)=(hero);
+        !!VR(heroSlot):S1;
+        !!CA(x)/(y)/(z):U?(townId);
+      !!en;
+      !!if&(garrisonHero)=-1;
+        !!VR(isAdded:y):S0;
+        !!re (slot:y)/0/6;
+          !!CA(x)/(y)/(z):M2/(slot)/?(monType:y)/?(monCount:y);
+          !!if&(monType)>-1/(monCount)>0;
+            !!EX(x)/(y)/(z)/(slot)/2:E?(donorXP:y);
+            !!FU(h3db_CheckAndAdd_IfMatch):P(hero)/(monType)/(monCount)/(donorXP)/?(isAdded);
+          !!en;
+        !!en;
+        !!FU(Array_Push)&(isAdded)=1:P(sourcesArr)/(hero)/1/(x)/(y)/(z);
+      !!en;
+    !!en;
+  !!en;
+
+  ; 2. Поиск ГАРНИЗОНОВ (тип 33) — Сканируем карту 2-й раз
+  !!VR(x):S-1; 
+  !!re i;
+    !!UN:U33/-1/-1/(x)/(y)/(z);
+    !!br&(x)<0;
+    !!GR(x)/(y)/(z):O?(garrisonOwner:y);
+    !!if&(garrisonOwner)=(player);
+      !!VR(isAdded):S0;
+      !!re (slot:y)/0/6;
+        !!GR(x)/(y)/(z):G(slot)/?(monType:y)/?(monCount:y);
+        !!if&(monType)>-1/(monCount)>0;
+          !!EX(x)/(y)/(z)/(slot)/4:E?(donorXP:y);
+          !!FU(h3db_CheckAndAdd_IfMatch):P(hero)/(monType)/(monCount)/(donorXP)/?(isAdded);
+        !!en;
+      !!en;
+      !!FU(Array_Push)&(isAdded)=1:P(sourcesArr)/(hero)/2/(x)/(y)/(z);
+    !!en;
+  !!en;
+
+  ; 3. АНТИМАГИЧЕСКИЕ гарнизоны (тип 218)
+  !!VR(x):S-1; 
+  !!re i;
+    !!UN:U218/-1/-1/(x)/(y)/(z);
+    !!br&(x)<0;
+    !!GR(x)/(y)/(z):O?(garrisonOwner); 
+    !!if&(garrisonOwner)=(player);
+      !!VR(isAdded):S0;
+      !!re (slot:y)/0/6;
+        !!GR(x)/(y)/(z):G(slot)/?(monType:y)/?(monCount:y);
+        !!if&(monType)>-1/(monCount)>0;
+          !!EX(x)/(y)/(z)/(slot)/4:E?(donorXP:y);
+          !!FU(h3db_CheckAndAdd_IfMatch):P(hero)/(monType)/(monCount)/(donorXP)/?(isAdded);
+        !!en;
+      !!en;
+      !!FU(Array_Push)&(isAdded)=1:P(sourcesArr)/(hero)/2/(x)/(y)/(z);
+    !!en;
+  !!en;
+
+  ; 4. Перебираем всех ГЕРОЕВ
+  !!re (otherHeroId:y)/0/(HERO_LAST_WOG);
+    !!co&(otherHeroId)=(hero);
+    !!HE(otherHeroId):O?(heroOwner:y);
+    !!if&(heroOwner)=(player);
+      !!VR(isAdded):S0;
+      !!re (slot:y)/0/6;
+        !!HE(otherHeroId):C0/(slot)/?(monType:y)/?(monCount:y);
+        !!if&(monType)>-1/(monCount)>0;
+          !!EX(otherHeroId)/(slot):E?(donorXP:y);
+          !!FU(h3db_CheckAndAdd_IfMatch):P(hero)/(monType)/(monCount)/(donorXP)/?(isAdded);
+        !!en;
+      !!en;
+      !!FU(Array_Push)&(isAdded)=1:P(sourcesArr)/(hero)/3/(otherHeroId)/0/0;
+    !!en;
+  !!en;
+!!en;
+
+
+; Проверка слотов героя и слияние
+!?FU(h3db_CheckAndAdd_IfMatch);
+!#VA(hero:x) (monType:x) (monCount:x) (donorXP:x) (isAdded:x);
+
+!!re (armySlot:y)/0/6;
+  !!HE(hero):C0/(armySlot)/?(heroMonType:y)/?(heroMonCount:y);
+  !!if&(heroMonType)=(monType);
+
+    !!HE(hero):B0/?(heroName:z);
+    !!UN:N3/(monName:z)/(monType)/0; 
+    *!IF:M^to {%(heroName)} %(armySlot) slot copied:%T(era.endl){%(monName)} ( %(monCount) )^;
+    !!HE(hero):C0/(armySlot)/d0/d(monCount)/(donorXP)/0;
+    !!VR(isAdded):S1;
+    !!br; 
+  !!en;
+!!en;
+
+
+; СОХРАНЕНИЕ ТОЧНОЙ КОПИИ АРМИИ И ОПЫТА СТЕКОВ ГЕРОЯ (ШАГ = 22)
+!?FU(h3db_CreateArmyBackup);
+!#VA(hero:x) (backupArr:x);
+
+!!FU&(hero)<=(NO_HERO):E;
+!!FU(Array_Push):P(backupArr)/(hero);
+!!re (slot:y)/0/6;
+  !!HE(hero):C0/(slot)/?(monType:y)/?(monCount:y);
+  !!EX(hero)/(slot):E?(monXP:y);
+  !!FU(Array_Push):P(backupArr)/(monType)/(monCount)/(monXP);
+!!en;
+
+; ВОССТАНОВЛЕНИЕ АРМИЙ И ОПЫТА СТЕКОВ ВСЕХ ГЕРОЕВ И УДАЛЕНИЕ МАССИВА
+!?FU(h3db_RestoreArmyBackup);
+!#VA(backupArr:x);
+
+!!SN:M(backupArr)/?(arrSize:y);
+!!if&(arrSize)<=0;
+  !!SN:M(backupArr);
+  !!VR(backupArr):S0;
+  !!FU:E;
+!!en;
+!!VR(lastIdx:y):S(arrSize) -22;
+!!re (baseIdx:y)/0/(lastIdx)/22;
+  !!SN:M(backupArr)/(baseIdx)/?(hero:y);
+  !!re (slot:y)/0/6;
+    !!VR(typeIdx:y):S(slot) *3 +1 +(baseIdx);
+    !!VR(countIdx:y):S(typeIdx) +1;
+    !!VR(xpIdx:y):S(typeIdx) +2;
+    !!SN:M(backupArr)/(typeIdx)/?(monType:y);
+    !!SN:M(backupArr)/(countIdx)/?(monCount:y);
+    !!SN:M(backupArr)/(xpIdx)/?(monXP:y);
+    !!HE(hero):C0/(slot)/(monType)/(monCount)/(monXP)/2;
+  !!en;
+!!en;
+!!SN:M(backupArr);
+!!VR(backupArr):S0;
+
+
+!?FU(h3db_WriteLog);
+!#VA(text:x) (printTime:x);
+
+!!FU&i^h3db_LOG^<=0:E;
+!!VR(constScriptName:z):S^h3Balancer^;
+!!FU(h3db_GetFormattedDateTime):P?(sDate:z)/?(sTime:z);
+!!VR(constPath:z):S^Runtime\[^+(constScriptName)+^]_^+(sDate)+^.log^;
+!!FU:A?(numArgs:y);
+!!if&(numArgs)<1;
+  !!FU(WriteLogToFile):P(constPath)/^- Start New Map -     |  mod ver: %s(h3db_sVer)  |  %s(h3db_BuildID)  |  logType: %i(h3db_LOG)  |  PluginVersion: %s(h3db_PluginVersion) (required 0.9.2)^/1;
+  !!FU:E;
+!!en;
+!!if&(printTime)=1;
+  !!VR(textLine:z):S^ %(sTime):  %z(text)^;
+  !!FU(WriteLogToFile):P(constPath)/(textLine);
+!!el;
+  !!FU(WriteLogToFile):P(constPath)/(text);
+!!en;
+
+
+!?FU(h3db_GetFormattedDateTime);
+; Getting the system date and time as a text
+!#VA(dateStrId:x) (timeStrId:x) (separator:x);
+!#VA(localDateStr:z) (localTimeStr:z) (dateSep:z) (timeSep:z);
+; Дефолтные разделители (для даты — пусто, для времени — двоеточие)
+!!VR(dateSep):S^^;
+!!VR(timeSep):S^:^;
+!!FU:A?(numArgs:y);
+!!if&(numArgs)>2;
+  !!if&z(separator)<>^^;
+    !!VR(dateSep):S^%z(separator)^;
+    !!VR(timeSep):S^%z(separator)^;
+  !!en;
+!!en;
+!!FU(gem_GetLocalTime):P?(year:y)/?(month:y)/d/?(day:y)/?(hour:y)/?(minute:y)/?(second:y);
+!!VR(shortYear:y):S(year) %100;
+!!VR(sYear:z):S^%(shortYear)^;
+!!VR(sYear)&(shortYear)<10:S^0%(shortYear)^;
+!!VR(sMonth:z):S^%(month)^;
+!!VR(sMonth)&(month)<10:S^0%(month)^;
+!!VR(sDay:z):S^%(day)^;
+!!VR(sDay)&(day)<10:S^0%(day)^;
+!!VR(localDateStr):S^%(sYear)%(dateSep)%(sMonth)%(dateSep)%(sDay)^;
+!!VR(dateStrId):Z(localDateStr);
+!!VR(sHour:z):S^%(hour)^;
+!!VR(sHour)&(hour)<10:S^0%(hour)^;
+!!VR(sMin:z):S^%(minute)^;
+!!VR(sMin)&(minute)<10:S^0%(minute)^;
+!!VR(sSec:z):S^%(second)^;
+!!VR(sSec)&(second)<10:S^0%(second)^;
+!!VR(localTimeStr):S^%(sHour)%(timeSep)%(sMin)%(timeSep)%(sSec)^;
+!!VR(timeStrId):Z(localTimeStr);
+
+
+!?FU(h3db_LogPlayersState);
+; печатает текущее состояние армий
+
+
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^                - PLAYERS INFO -^;
+  !!FU(h3db_WriteLog):P^   -------------------------------------------^;
+!!re (hero:y)/0/(HERO_LAST_WOG);
+  !!HE(hero):O?(heroOwner:y);
+  !!co|(heroOwner)<=(NO_PLAYER)/(heroOwner)>(PLAYER_LAST);
+  !!OW:I(heroOwner)/?(isAi:y)/?(isDead:y);
+  !!if&(isDead)=0;
+    !!HE(hero):B0/?(heroName:z);
+    !!FU(h3db_WriteLog):P^   _____________________________________________________________________^;
+    !!FU(h3db_WriteLog):P^^;
+    !!VR(str2:z):S^AI^;
+    !!VR(str2)&(isAi)=0:S^ >> HUMAN << ^;
+    !!VR(str:z):S^   PL _ %(heroOwner)    --   %(heroName)  --  %(str2)^;
+    !!FU(h3db_WriteLog):P(str);
+    !!FU(h3db_WriteLog):P^^;
+    !!VR(str):S^   ^;
+    !!re (armySlot:y)/0/6;
+      !!HE(hero):C0/(armySlot)/?(monType:y)/?(monCount:y);
+      !!co&(monType)=(NO_MON);
+      !!UN:N3/(monName:z)/(monType)/0; 
+      !!VR(str):+^%(monName) %(monCount)  .  ^;
+    !!en;
+  !!en;
+  !!FU(h3db_WriteLog):P(str);
+!!en;
+!!FU(h3db_WriteLog):P^   -------------------------------------------^;
+
+
+
+; 1. СОХРАНЕНИЕ АРМИЙ С ФОРМАЛЬНЫМ ОБЪЕДИНЕНИЕМ ОДИНАКОВЫХ СТЕКОВ
+; Вызов: *!FU(h3db_SavePlayersArmyState):P?(armyStateArr:y);
+!?FU(h3db_SavePlayersArmyState);
+!#VA(stateArr:x);
+
+!!FU(NewIntArray):P0/0/?(stateArr)/(M_STORED);
+!!re (hero:y)/0/(HERO_LAST_WOG);
+  !!HE(hero):O?(heroOwner:y);
+  !!co|(heroOwner)<=(NO_PLAYER)/(heroOwner)>(PLAYER_LAST);
+  !!OW:I(heroOwner)/?(isAi:y)/?(isDead:y);
+  !!if&(isDead)=0;
+    !!FU(Array_Push):P(stateArr)/(heroOwner)/(hero);
+    !!re (armySlot:y)/0/6;
+      !!HE(hero):C0/(armySlot)/?(monType:y)/?(monCount:y);
+      !!if&(monType)=(NO_MON);
+        !!FU(Array_Push):P(stateArr)/(NO_MON)/0;
+        !!co;
+      !!en;
+      !!VR(isDuplicate:y):S0;
+      !!VR(totalCount:y):S0;
+      !!re (scanSlot:y)/0/6;
+        !!HE(hero):C0/(scanSlot)/?(scanType:y)/?(scanCount:y);
+        !!if&(scanType)=(monType);
+          !!if&(scanSlot)<(armySlot);
+            !!VR(isDuplicate):S1;
+            !!br;
+          !!el;
+            !!VR(totalCount):+(scanCount);
+          !!en;
+        !!en;
+      !!en;
+      !!if&(isDuplicate)=1;
+        !!FU(Array_Push):P(stateArr)/(NO_MON)/0;
+      !!el;
+        !!FU(Array_Push):P(stateArr)/(monType)/(totalCount);
+      !!en;
+    !!en;
+  !!en;
+!!en;
+
+
+; 2. ВЫВОД РАЗНИЦЫ АРМИЙ В ЛОГ И УДАЛЕНИЕ МАССИВА
+; Вызов: *!FU(h3db_LogPlayersStateDiff):P(armyStateArr)/(sourcesArr)/(heroTownsArr);
+!?FU(h3db_LogPlayersStateDiff);
+!#VA(stateArr:x) (sourcesArr:x) (heroTownsArr:x) (logType:x);
+
+!!VR(logType)&i^h3db_LOG^=3:S1;
+!!SN:M(stateArr)/?(arrSize:y);
+!!if&(arrSize)<=0;
+  !!SN:M(stateArr);
+  !!VR(stateArr):S0;
+  !!SN:M(sourcesArr);
+  !!VR(sourcesArr):S0;
+  !!SN:M(heroTownsArr);
+  !!VR(heroTownsArr):S0;
+  !!FU:E;
+!!en;
+
+!!if&i^h3db_LOG^>0;
+  *!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^^;
+  !!FU(h3db_WriteLog):P^                - COMBINED TROOPS INFO DUMP -^;
+  !!FU(h3db_WriteLog):P^   -------------------------------------------^;
+!!en;
+!!VR(lastIdx:y):S(arrSize) -16;
+!!re (baseIdx:y)/0/(lastIdx)/16;
+  !!VR(heroIdx:y):S(baseIdx) +1;
+  !!SN:M(stateArr)/(baseIdx)/?(savedOwner:y);
+  !!SN:M(stateArr)/(heroIdx)/?(hero:y);
+  !!OW:I(savedOwner)/?(isAi:y)/?(isDead:y);
+  !!co&(isDead)<>0;
+
+  !!HE(hero):O?(currOwner:y);
+  !!HE(hero):B0/?(heroName:z);
+
+; Считываем статус чемпиона, слот и номер замка героя из массива heroTownsArr
+  !!VR(champMark:z):S^  ^;
+  !!VR(heroSlot:y):S-1;
+  !!VR(townId:y):S-1;
+  !!VR(isChamp:y):S0;
+  !!SN:M(heroTownsArr)/?(htArrSize:y);
+  !!if&(htArrSize)>0;
+    !!VR(lastHtIdx:y):S(htArrSize) -3;
+    !!re (htIdx:y)/0/(lastHtIdx)/3;
+      !!SN:M(heroTownsArr)/(htIdx)/?(htHero:y);
+      !!if&(htHero)=(hero);
+        !!VR(isChamp):S1;
+        !!VR(champMark):S^* ^;
+        !!VR(slotIdx:y):S(htIdx) +1;
+        !!VR(townIdx:y):S(htIdx) +2;
+        !!SN:M(heroTownsArr)/(slotIdx)/?(heroSlot);
+        !!SN:M(heroTownsArr)/(townIdx)/?(townId);
+        !!br;
+      !!en;
+    !!en;
+  !!en;
+  !!co&i^h3db_LOG^=5/(isChamp)=0;
+  !!if&i^h3db_LOG^>0;
+    ; Если герой находится в замке, получаем имя замка по его номеру и формируем строку
+    !!VR(townStatusStr:z):S^^;
+    !!if&(townId)>-1;
+      !!CA0/(townId):N?(townName:z);
+      !!VR(townStatusStr):S^   #_ПОЗИЦИЯ_# [ЗАМ: %(townName), СЛОТ: %(heroSlot)]^;
+    !!en;
+
+    !!if&(logType)=1;
+      !!FU(h3db_WriteLog):P^   _____________________________________________________________________^;
+      !!FU(h3db_WriteLog):P^^;
+      !!VR(logFirstLine:z):S^AI^;
+      !!VR(logFirstLine)&(isAi)=0:S^ >> HUMAN << ^;
+      !!VR(logFirstLine)&(currOwner)<>(savedOwner):+^ [LOST]^;
+      !!VR(logFirstLine):+^%(townStatusStr)^;
+      !!VR(gatherStr:z):S^^;
+    !!el;
+      !!VR(logFirstLine2:z):S^AI^;
+      !!VR(logFirstLine2)&(isAi)=0:S^HUMAN^;
+      !!VR(logFirstLine2)&(currOwner)<>(savedOwner):+^ [LOST]^;
+    !!en;
+  !!en;
+  !!SN:M(sourcesArr)/?(srcArrSize:y);
+
+  !!if&(srcArrSize)>0;
+    !!VR(lastSrcIdx:y):S(srcArrSize) -5;
+    !!re (sIdx:y)/0/(lastSrcIdx)/5;
+      !!SN:M(sourcesArr)/(sIdx)/?(srcHero:y);
+      !!if&(srcHero)=(hero);
+        !!VR(idx1:y):S(sIdx) +1;
+        !!VR(idx2:y):S(sIdx) +2;
+        !!VR(idx3:y):S(sIdx) +3;
+        !!VR(idx4:y):S(sIdx) +4;
+        !!SN:M(sourcesArr)/(idx1)/?(srcType:y);
+        !!SN:M(sourcesArr)/(idx2)/?(v1:y);
+        !!SN:M(sourcesArr)/(idx3)/?(v2:y);
+        !!SN:M(sourcesArr)/(idx4)/?(v3:y);
+        !!if&(logType)=1/i^h3db_LOG^>0;
+          !!if&(gatherStr)<>^^;
+            !!VR(gatherStr):+^, ^;
+          !!en;
+          !!if&(srcType)=1;
+            !!CA(v1)/(v2)/(v3):N?(srcName:z);
+            !!VR(gatherStr):+^ЗАМ:%(srcName)^;
+          !!el&(srcType)=2;
+            !!VR(gatherStr):+^ГАР:%(v1).%(v2).%(v3)^;
+          !!el&(srcType)=3;
+            !!HE(v1):B0/?(srcName:z);
+            !!VR(gatherStr):+^ГЕР:%(srcName)^;
+          !!en;
+        !!en;
+      !!en;
+    !!en;
+  !!en;
+  !!if&i^h3db_LOG^>0;
+    !!if&(logType)=1;
+      !!if&(gatherStr)<>^^;
+        !!VR(logFirstLine):+^      # сбор (%(gatherStr))^;
+      !!en;
+      !!VR(logFirstLine2:z):S^   PL_%(savedOwner)    --  %(champMark)%(heroName)  --  %(logFirstLine)^;
+      !!FU(h3db_WriteLog):P(logFirstLine2);
+      !!FU(h3db_WriteLog):P^^;
+      !!VR(logFirstLine2):S^^;
+    !!el;
+      !!VR(gatherStr):S^   PL_%(savedOwner) %(champMark)%(heroName) . . . . . . ^;
+      !!FU(Substr):P(gatherStr)/0/23/?(logFirstLine);
+
+      !!VR(logFirstLine)&(isAi)=1: +^%(logFirstLine2)    ^;
+      !!VR(logFirstLine)&(isAi)=0: +^%(logFirstLine2) ^;
+    !!en;
+  !!en;
+  !!VR(hasChanges:y):S0;
+
+  ; ПРОХОД 1: Формально объединяем текущие стеки героя и сверяем со старыми
+  !!if&(currOwner)=(savedOwner);
+    !!re (armySlot:y)/0/6;
+      !!HE(hero):C0/(armySlot)/?(currType:y)/?(currCount:y);
+      !!co&(currType)=(NO_MON);
+      !!VR(isDuplicate:y):S0;
+      !!VR(totalCurrCount:y):S0;
+      !!re (scanSlot:y)/0/6;
+        !!HE(hero):C0/(scanSlot)/?(scanType:y)/?(scanCount:y);
+        !!if&(scanType)=(currType);
+          !!if&(scanSlot)<(armySlot);
+            !!VR(isDuplicate):S1;
+            !!br;
+          !!el;
+            !!VR(totalCurrCount):+(scanCount);
+          !!en;
+        !!en;
+      !!en;
+      !!co&(isDuplicate)=1;
+
+      ; Ищем этот тип существ в сохраненном массиве (там он уже объединен в 1 слот)
+      !!VR(oldCount:y):S0;
+      !!re (oldSlot:y)/0/6;
+        !!VR(typeIdx:y):S(oldSlot) *2 +2 +(baseIdx);
+        !!VR(countIdx:y):S(typeIdx) +1;
+        !!SN:M(stateArr)/(typeIdx)/?(savedType:y);
+        !!SN:M(stateArr)/(countIdx)/?(savedCount:y);
+
+        !!if&(savedType)=(currType);
+          !!VR(oldCount):S(savedCount);
+          ; Затираем найденный старый слот, чтобы он не вывелся во втором проходе
+          !!SN:M(stateArr)/(typeIdx)/(NO_MON);
+          !!SN:M(stateArr)/(countIdx)/0;
+          !!br;
+        !!en;
+      !!en;
+      !!VR(diff:y):S(totalCurrCount) -(oldCount);
+      !!VR(hasChanges)&(diff)<>0:S1;
+      !!if&i^h3db_LOG^>0;
+        !!UN:N3/(monName:z)/(currType)/0;
+        !!if&(logType)=1;
+          !!VR(diffStr:z):S^^;
+          !!VR(diffStr)&(diff)>0:S^ (+%(diff))^;
+          !!VR(diffStr)&(diff)<0:S^ (%(diff))^;
+          !!VR(logFirstLine2):+^%(monName) %(totalCurrCount)%(diffStr)  .  ^;
+        !!el;
+          !!VR(diffStr):S^^;
+          !!VR(diffStr)&(diff)>0:S^ ..+%(diff)..^;
+          !!VR(diffStr)&(diff)<0:S^ %(diff)^;
+          !!VR(logFirstLine):+^(%(monName) %(totalCurrCount)%(diffStr)) __ ^;
+        !!en;
+      !!en;
+    !!en;
+  !!en;
+
+  ; ПРОХОД 2: Выводим оставшиеся старые стеки, которые полностью исчезли
+  ; (так как они уже были объединены при сохранении, дубликатов здесь нет)
+  !!re (oldSlot:y)/0/6;
+    !!VR(typeIdx:y):S(oldSlot) *2 +2 +(baseIdx);
+    !!VR(countIdx:y):S(typeIdx) +1;
+    !!SN:M(stateArr)/(typeIdx)/?(oldType:y);
+    !!SN:M(stateArr)/(countIdx)/?(oldCount:y);
+    !!co&(oldType)=(NO_MON);
+    !!VR(hasChanges):S1;
+    !!if&i^h3db_LOG^>0;
+      !!UN:N3/(monName:z)/(oldType)/0;
+      !!VR(logFirstLine2)&(logType)=1:+^%(monName) 0 (-%(oldCount))  .  ^;
+    !!en;
+  !!en;
+  !!if&i^h3db_LOG^>0;
+    !!if&(logType)=1;
+      !!if&(hasChanges)=1;
+        !!VR(logFirstLine2):S^ > %(logFirstLine2)^;
+      !!el;
+        !!VR(logFirstLine2):S^   %(logFirstLine2)^;
+      !!en;
+      !!FU(h3db_WriteLog):P(logFirstLine2);
+    !!el;
+      !!VR(logFirstLine):+^%(townStatusStr)^;
+      !!FU(h3db_WriteLog):P(logFirstLine);
+    !!en;
+  !!en;
+!!en;
+!!FU(h3db_WriteLog)&(logType)=1/i^h3db_LOG^>0:P^   -------------------------------------------^;
+
+!!SN:M(stateArr);
+!!VR(stateArr):S0;
+!!SN:M(sourcesArr);
+!!VR(sourcesArr):S0;
+!!SN:M(heroTownsArr);
+!!VR(heroTownsArr):S0;
+
+
+
+
+// ф-ция для получения самого сильного героя для игрока
+!?FU(h3db_PlayerId_GetMostPowerfullHeroId);
+!#VA(playerId:x) (result:x);
+!!VR(result:x):S(NO_HERO);
+
+!!FU(gem_Player_GetHeroesList):P(playerId)/?(heroesList:y);
+!!SN:M(heroesList)/?(size:y);
+!!FU&(size)<1:E;
+!!VR(highestTotalFv:y):S-1;
+!!re i/0/(size)/1/-1;                   [итерируем героев]
+  !!SN:M(heroesList)/i/?(heroId:y);
+  !!HE(heroId:y):Z?(hero:y);
+  !!SN:E4355664/(CALLCONV_THISCALL)/(hero); [получение силы дипломатии армии(ипользуется в таверне)]
+  !!if&v1>(highestTotalFv);
+    !!VR(highestTotalFv):Sv1;
+    !!VR(result):S(heroId);             [возрат id героя]
+  !!en;
+!!en;
+
+
+
+
+
+
+  ;  АЛГОРИТМЫ БАЛАНСА
+
+; ==============================================================================
+; ФУНКЦИЯ: Оценить_Стратегическое_Преимущество
+; Корректирует тактический перевес с учетом мобильности и контроля карты
+; ==============================================================================
+!?FU(h3db_ApplyStrategicAdvantage); не используется?
+!#VA(humanHero:x) (aiHero:x) (overbalanceMag:x) (overbalanceSide:x) (finalMag:x) (finalSide:x);
+
+!!VR(maxShift:y):S30; [константа: максимальное смещение = 30]
+
+; 1. Приведение боевого перевеса к знаковому числу (0 = Человек / минус, 1 = ИИ / плюс)
+!!if&(overbalanceSide)=0;
+  !!VR(signedOverbalance:y):S0 -(overbalanceMag);
+!!el;
+  !!VR(signedOverbalance:y):S(overbalanceMag);
+!!en;
+
+; 2. Подсчет стратегических очков героев (артефакты и заклинания контроля карты)
+!!FU(h3db_GetHeroStrategicWeight):P(humanHero)/?(humanScore:y);
+!!FU(h3db_GetHeroStrategicWeight):P(aiHero)/?(aiScore:y);
+
+; 3. Вычисление разницы потенциалов (+ в пользу ИИ, - в пользу Человека)
+!!VR(stratDelta:y):S(aiScore) -(humanScore);
+
+; 4. Ограничение стратегического смещения пределами (-maxShift .. +maxShift)
+!!VR(minShift:y):S0 -(maxShift);
+!!if&(stratDelta)>(maxShift);
+  !!VR(stratDelta):S(maxShift);
+!!el&(stratDelta)<(minShift);
+  !!VR(stratDelta):S(minShift);
+!!en;
+
+; 5. Наложение стратегической поправки на боевой перевес
+!!VR(finalSigned:y):S(signedOverbalance) +(stratDelta);
+
+; 6. Удержание результата в общих границах шкалы (-100..100)
+!!if&(finalSigned)>100;
+  !!VR(finalSigned):S100;
+!!el&(finalSigned)<-100;
+  !!VR(finalSigned):S-100;
+!!en;
+
+; 7. Разбор обратно на итоговую величину (0..100) и итоговую сторону (0..1)
+!!if&(finalSigned)<0;
+  !!VR(finalSide):S0;
+  !!VR(finalMag):S0 -(finalSigned);
+!!el;
+  !!VR(finalSide):S1;
+  !!VR(finalMag):S(finalSigned);
+!!en;
+
+
+; ==============================================================================
+; ФУНКЦИЯ: Сгладить_Величину_Перевеса
+; Скользящее среднее (окно 3 дня) с мгновенным сбросом при смене лидера
+; ==============================================================================
+!?FU(h3db_SmoothOverbalance);
+!#VA(aiHero:x) (finalMag:x) (finalSide:x) (smoothedMag:x);
+
+; 1. Получение владельца героя ИИ для привязки к его персональной истории
+!!HE(aiHero):O?(aiPlayer:y);
+
+; 2. Приведение к знаковому числу (0 = Человек / минус, 1 = ИИ / плюс)
+!!if&(finalSide)=0;
+  !!VR(currVal:y):S0 -(finalMag);
+!!el;
+  !!VR(currVal:y):S(finalMag);
+!!en;
+; 3. Получение истории конкретного ИИ-игрока (ленивая инициализация с M_STORED)
+!!VR(arrayId:y):Si^h3db_aiHistory_%(aiPlayer)^;
+!!if&(arrayId)=0;
+  !!FU(NewIntArray):P0/0/?(arrayId)/(M_STORED);
+  !!VRi^h3db_aiHistory_%(aiPlayer)^:S(arrayId);
+!!en;
+
+!!SN:M(arrayId)/?(size:y);
+; 4. Проверка на дубликат и смену вектора (сброс истории при развороте знака)
+!!if&(size)>0;
+  !!VR(lastIdx:y):S(size) -1;
+  !!SN:M(arrayId)/(lastIdx)/?(prevVal:y);
+
+  ; Атомарная проверка смены знака без смешивания & и | в одном условии
+  !!VR(isSignFlipped:y):S(FALSE);
+  !!VR(isSignFlipped)&(prevVal)>0/(currVal)<0:S(TRUE);
+  !!VR(isSignFlipped)&(prevVal)<0/(currVal)>0:S(TRUE);
+
+  !!if&(isSignFlipped)=(TRUE);
+    !!SN:M(arrayId)/0; [очищаем динамический массив]
+    !!VR(size):S0;
+  !!en;
+!!en;
+
+; 5. Добавление свежего значения в конец истории
+!!FU(Array_Push):P(arrayId)/(currVal);
+!!SN:M(arrayId)/?(size);
+; 6. Ограничение окна истории до 3 значений (текущее + 2 старых)
+!!if&(size)>3;
+  ; Удаляем 1 самый старый элемент начиная с индекса 0
+  !!FU(Array_Splice):P(arrayId)/0/1;
+  !!VR(size):S3;
+!!en;
+
+; 7. Подсчет среднего арифметического
+!!VR(sum:y):S0;
+!!VR(lastIdx:y):S(size) -1;
+
+!!re i/0/(lastIdx);
+  !!SN:M(arrayId)/i/?(val:y);
+  !!VR(sum):+(val);
+!!en;
+!!VR(avgVal:y):S(sum) :(size);
+; 8. Возврат сглаженной величины без знака (0..100)
+!!if&(avgVal)<0;
+  !!VR(smoothedMag):S0 -(avgVal);
+!!el;
+  !!VR(smoothedMag):S(avgVal);
+!!en;
+
+
+!?FU(h3db_ApplyAIDifficultyMod);
+!#VA(aiHero:x) (overbalanceMag:x) (overbalanceSide:x);
+
+; Получаем владельца героя (номер игрока ИИ)
+!!HE(aiHero):O?(player:y);
+
+; ВЕТКА А: Перевес на стороне ИИ (side = 0) -> Урезание параметров (Санкции)
+!!if&(overbalanceSide)=0;
+  ; Задаем отрицательный процент модификатора по величине магнитуды
+  !!VRi^h3db_aiResGold_%(player)_pctModifier^:S0 -(overbalanceMag);
+  !!VRi^h3db_aiResAll_%(player)_pctModifier^:S0 -(overbalanceMag);
+
+; ВЕТКА Б: Перевес на стороне Человека (side = 1) -> Прирост параметров (Бонусы)
+!!el;
+  ; Задаем положительный процент модификатора по величине магнитуды
+  !!VRi^h3db_aiResGold_%(player)_pctModifier^:S(overbalanceMag);
+  !!VRi^h3db_aiResAll_%(player)_pctModifier^:S(overbalanceMag);
+!!en;
+; Применение рассчитанных параметров к игроку ИИ и его чемпиону
+
+
+!?FU(h3db_GetEvaluatedCombatAdvantage);
+!#VA(winnerSide:x) (rightSide:x) (victoryHero:x) (powerOverbalanceMagnitude:x) (overbalanceSide:x);
+
+; 1. ПОЛУЧЕНИЕ АРМИЙ И ПОДСЧЁТ МОЩИ (AI VALUE)
+; ----------------------------------------------------------------
+
+; 1.1. АРМИЯ ПОБЕДИТЕЛЯ (Наши войска)
+; Создаём временный массив под армию победителя и заполняем его стеками после боя
+!!FU(NewIntArray):P?(victoryArmy:y);
+!!FU(h3db_GetAfterCombatArmy):P(winnerSide)/(victoryArmy); [получаем инфо об армии]
+!!SN:M(victoryArmy)/?(size:y);
+!!VR(startAllArmyPower:e):S0;
+!!VR(survivedAllArmyPower:e):S0;
+!!VR(text:z)&i^h3db_LOG^>0:S^^;
+; Получаем цвет победителя текстом (owner 0..7 -> Красный, Синий и т.д.)
+!!HE(victoryHero):O?(winnerOwner:y);
+!!if&i^h3db_LOG^>0;
+  !!OW:I(winnerOwner)/?(isAi:y);
+  !!if&(isAi)=0;
+    !!VR(winnerColorStr:z):S^HUMAN^;
+  !!el;
+    !!FU(GetTextFileString):P^plcolors.txt^/(winnerOwner)/?(winnerColorStr:z);
+  !!en;
+  !!if&i^h3db_LOG^=5;
+    !!VR(logUnitsText:z):S^ WINNER: %(winnerColorStr)^;
+  !!el;
+    !!VR(logUnitsText:z):S^            WINNER: %(winnerColorStr)  >>  UNITS: ^;
+  !!en;
+!!en;
+!!re k/0/(size)/1/-1;
+  !!SN:M(victoryArmy)/k/?(monType:y);
+  !!VRk:+1;
+  !!SN:M(victoryArmy)/k/?(countAfterBattle:y);
+  !!VRk:+1;
+  !!SN:M(victoryArmy)/k/?(countBeforeBattle:y);
+
+  ; Пропускаем командиров (ID 174..191)
+  !!co&(monType)>173/(monType)<192;
+
+  ; Формируем строки для окна (text) и для лога (logUnitsText)
+  !!if&i^h3db_LOG^>0;
+    !!UN:N3/(monName:z)/(monType)/0;
+    !!VR(died:y):S(countBeforeBattle) -(countAfterBattle);
+    !!if&i^h3db_LOG^<>5;
+      !!if|i^h3db_LOG^=2/i^h3db_LOG^=-2;
+        !!VR(text):+^{%(monName)} alive = %(countAfterBattle) ( died {%(died)} )%T(era.endl)^;
+      !!el;
+        !!VR(logUnitsText):+^[%(monName) A:%(countAfterBattle) D:%(died)] ^; [Сборка лога в линию]
+      !!en;
+    !!en;
+  !!en;
+  !!MA:I(monType)/?(aiValue:y);
+  !!VR(stackMult:e):S1; [Множитель эффективности / баффов для каждого стека (Mult) 1.0]
+
+  ; Считаем начальную и выжившую мощь конкретного стека
+  !!VR(stackAdjustedValue:e):S(aiValue) *(stackMult);
+  !!VR(startStackPower:e):S(countBeforeBattle) *(stackAdjustedValue);
+  !!VR(survivedStackPower:e):S(countAfterBattle) *(stackAdjustedValue);
+
+  ; Суммируем в общую начальную и выжившую мощь всей армии
+  !!VR(startAllArmyPower):+(startStackPower);
+  !!VR(survivedAllArmyPower):+(survivedStackPower);
+!!en;
+!!SN:M(victoryArmy); [Освобождаем временный массив армии победителя]
+
+; 1.2. АРМИЯ ПРОИГРАВШЕГО (Войска врага) - Подсчет уничтоженной мощи
+!!VR(loserSide:y):S1 -(winnerSide); [Инвертируем сторону 0 <-> 1]
+!!FU(NewIntArray):P?(loserArmy:y);
+!!FU(h3db_GetAfterCombatArmy):P(loserSide)/(loserArmy);
+!!SN:M(loserArmy)/?(loserSize:y);
+!!VR(enemyLostPower:e):S0;
+!!re k/0/(loserSize)/1/-1;
+  !!SN:M(loserArmy)/k/?(monType:y);
+  !!VRk:+1;
+  !!SN:M(loserArmy)/k/?(countAfterBattle:y);
+  !!VRk:+1;
+  !!SN:M(loserArmy)/k/?(countBeforeBattle:y);
+
+  ; Пропускаем командиров (ID 174..191)
+  !!co&(monType)>173/(monType)<192;
+  !!VR(enemyDied:y):S(countBeforeBattle) -(countAfterBattle);
+
+  ; Если есть потери в стеке, умножаем на AI Value и плюсуем к общим потерям врага
+  !!if&(enemyDied)>0;
+    !!MA:I(monType)/?(aiValue:y);
+    !!VR(enemyStackLostPower:e):S(enemyDied) *(aiValue);
+    !!VR(enemyLostPower):+(enemyStackLostPower);
+  !!en;
+!!en;
+!!SN:M(loserArmy); [Освобождаем временный массив армии проигравшего]
+
+
+; 2. ФОРМУЛЫ РАСЧЁТА БОЕВОЙ ЭФФЕКТИВНОСТИ
+; ----------------------------------------------------------------
+
+; ------------------------------------------------------------------------------
+; 2.1. Процент сохранившейся мощи (Dominance Percent):
+; Показывает, какой процент от изначальной силы армии уцелел после боя (0%..100%).
+; ------------------------------------------------------------------------------
+!!if&(startAllArmyPower)>0;
+  !!VR(dominancePercent:e):S(survivedAllArmyPower) :(startAllArmyPower) *100;
+!!el;
+  !!VR(dominancePercent:e):S0;
+!!en;
+
+; ------------------------------------------------------------------------------
+; 2.2. Индекс боевой эффективности (Net Efficiency Ratio):
+; Отношение выжившей мощи к потерянной (во сколько раз выжившая сила больше потерь).
+; Если потерь нет (lostArmyPower = 0), устанавливается максимальный индекс 999.
+; ------------------------------------------------------------------------------
+!!VR(lostArmyPower:e):S(startAllArmyPower) -(survivedAllArmyPower);
+!!if&(lostArmyPower)>0;
+  !!VR(netEfficiency:e):S(survivedAllArmyPower) :(lostArmyPower);
+!!el;
+  !!VR(netEfficiency:e):S999;
+!!en;
+
+; ------------------------------------------------------------------------------
+; 2.3. Процент боевой эффективности (Win-Loss Efficiency %):
+; Оцениваем качество размена: Уничтоженная сила врага по отношению к общему
+; обороту потерь в бою (Уничтоженная сила врага + Наши потери). Реальный КПД боя.
+; ------------------------------------------------------------------------------
+!!VR(totalCombatLosses:e):S(enemyLostPower) +(lostArmyPower);
+
+!!if&(totalCombatLosses)>0;
+  !!VR(efficiencyPercent:e):S(enemyLostPower) :(totalCombatLosses) *100;
+!!el;
+  !!VR(efficiencyPercent:e):S100; [Если потерь с обеих сторон нет]
+!!en;
+
+; ------------------------------------------------------------------------------
+; 2.4. Процент подавления выжившим остатком (Overmatch Percent):
+; Показывает долю выжившего кулака победителя относительно всей уничтоженной
+; армии врага (50% = остаток равен стартовой армии врага, >75% = кратное подавление).
+; ------------------------------------------------------------------------------
+!!VR(overmatchTotal:e):S(survivedAllArmyPower) +(enemyLostPower);
+
+!!if&(overmatchTotal)>0;
+  !!VR(overmatchPercent:e):S(survivedAllArmyPower) :(overmatchTotal) *100;
+!!el;
+  !!VR(overmatchPercent:e):S0;
+!!en;
+
+; 3. АНАЛИЗ И РАСЧЕТ МАГНИТУДЫ ПЕРЕВЕСА (МАСШТАБ ДИСБАЛАНСА)
+; ----------------------------------------------------------------
+!!HE(victoryHero):O?(winnerOwner:y);
+!!OW:I(winnerOwner)/?(winnerIsAI:y);
+
+; Вычисляем магнитуду перевеса (powerOverbalanceMagnitude).
+; Шкала от 0 до 100 отражает реальный стратегический перевес победителя:
+; 0   — пиррова победа на волоске (обе армии взаимно уничтожены, баланс не нарушен).
+; 50  — ощутимый перекос сил (сохранена половина армии и подавлен противник).
+; 100 — тотальный разгром врага всухую.
+!!FU(h3db_CalculateAIDifficultyMod):P(winnerIsAI)/(dominancePercent)/(efficiencyPercent)/?(powerOverbalanceMagnitude)/?(overbalanceSide);
+
+; 4. ВЫВОД РАСЧЁТНЫХ ПОКАЗАТЕЛЕЙ И СТАТИСТИКИ БОЯ
+; ----------------------------------------------------------------
+
+; ДЛЯ ВЫВОДА СТАТЫ (имя героя, цвет игрока и список выживших/павших отрядов)
+!!if|i^h3db_LOG^=2/i^h3db_LOG^=-2;
+  !!HE(victoryHero):B0/?(heroName:z) O?(winnerColor:y);
+  !!FU(GetTextFileString):P^plcolors.txt^/(rightSide)/?(loserSideStr:z);
+  !!if&(winnerSide)=(BATTLE_LEFT);
+    !!VR(batResult:z):S^HUMAN_L^;
+  !!el;
+    !!VR(batResult:z):S^AI_R^;
+  !!en;
+
+  !!VR(netEfficiency):F0/100; [для лога]
+
+  !!if&i^h3db_LOG^=-2;
+    !!IF:M^PLAYER vs {%(loserSideStr)} WIN: %(batResult)%T(era.endl)HERO (winner): {%(heroName)}%T(era.endl)%(text)
+    DOMINANCE {%(dominancePercent)}%T(era.endl)MAGNITUDE: {%(powerOverbalanceMagnitude)}%T(era.endl)SIDE: {%(overbalanceSide)}^;
+  !!el;
+    !!IF:M^PLAYER vs {%(loserSideStr)} WIN: %(batResult)%T(era.endl)HERO (winner): {%(heroName)}%T(era.endl)%T(era.endl)%(text)
+    dominancePercent {%(dominancePercent)}%T(era.endl)netEfficiency {%(netEfficiency)}%T(era.endl)efficiencyPercent {%(efficiencyPercent)}%T(era.endl)overmatchPercent {%(overmatchPercent)}
+    powerOverbalanceMagnitude: {%(powerOverbalanceMagnitude)}%T(era.endl)overbalanceSide: {%(overbalanceSide)}^;
+  !!en;
+!!en;
+
+!!FU|i^h3db_LOG^=2/i^h3db_LOG^=-2:E;
+; --- Запись метрик в лог строго в 2 этапа ---
+; 1 этап: вывод собранной строки юнитов
+!!if&i^h3db_LOG^>0;
+  !!FU(h3db_WriteLog)&i^h3db_LOG^<>5:P^^;
+  !!if&i^h3db_LOG^=5;
+    !!VR(logStatsText:z):S^            ?  COMBAT RESULT:^ +(logUnitsText);
+    !!FU(h3db_WriteLog):P(logStatsText); 
+  !!en;
+  *!FU(h3db_WriteLog)&i^h3db_LOG^<>5:P^^;
+  !!FU(h3db_WriteLog)&i^h3db_LOG^<>5:P(logUnitsText); 
+  ; 2 этап: сборка и вывод строки статов (используем напрямую e-переменные для float)
+  !!if&i^h3db_LOG^<>5;
+    !!VR(logStatsText:z):S^            STATS: DOM:%(dominancePercent) NET:%(netEfficiency) EFF:%(efficiencyPercent) OVR:%(overmatchPercent) MAG:%(powerOverbalanceMagnitude) SIDE:%(overbalanceSide)^;
+    !!FU(h3db_WriteLog):P(logStatsText);
+  !!en;
+!!en;
+
+
+
+!?FU(h3db_CalculateAIDifficultyMod);
+!#VA(winnerIsAI:x) (winnerDominance:x) (winnerEfficiency:x) (outMagnitude:x) (outStateFlag:x);
+
+; ==============================================================================
+; ФУНКЦИЯ РАСЧЕТА МАГНИТУДЫ ДИСБАЛАНСА (Symmetric Overbalance Model)
+; ------------------------------------------------------------------------------
+; Входящие параметры:
+; winnerIsAI       : Флаг победителя (0 = Игрок, 1 = ИИ)
+; winnerDominance  : float (x -> сырые байты), Сохранность армии победителя (0-100%)
+; winnerEfficiency : float (x -> сырые байты), Эффективность размена потерь (0-100%)
+; 
+; Исходящие параметры:
+; outMagnitude     : int (x), Магнитуда перевеса (0 = равный бой на истощение, 50 = средний перевес, 100 = сухой разгром)
+; outStateFlag     : int (x), Направление перекоса (1 = ИИ нужна помощь/баланс, 0 = ИИ слишком силен, нужны санкции)
+; ==============================================================================
+
+; 1. РАСПАКОВКА ВХОДНЫХ МЕТРИК ПОБЕДИТЕЛЯ (Симметрично для ИИ и Человека)
+!!VR(winnerDom:e):C(winnerDominance);
+!!VR(winnerEff:e):C(winnerEfficiency);
+
+!!VR(winnerDom)&(winnerDom)<0:S0;
+!!VR(winnerDom)&(winnerDom)>100:S100;
+!!VR(winnerEff)&(winnerEff)<0:S0;
+!!VR(winnerEff)&(winnerEff)>100:S100;
+
+; 2. ВЫЧИСЛЕНИЕ ПОДАВЛЕНИЯ ОСТАТКОМ АРМИИ (Overmatch Percent, 0..100%)
+; Показывает отношение выжившей мощи победителя ко всей уничтоженной мощи врага.
+; Выводится аналитически из DOM и EFF:
+; OVR = (DOM * (100 - EFF)) / (DOM * (100 - EFF) + EFF * (100 - DOM)) * 100
+!!VR(invEff:e):S100 -(winnerEff);
+!!VR(invDom:e):S100 -(winnerDom);
+!!VR(ovrNum:e):S(winnerDom) *(invEff);
+!!VR(ovrLoss:e):S(winnerEff) *(invDom);
+!!VR(ovrDen:e):S(ovrNum) +(ovrLoss);
+
+!!if&(ovrDen)>0;
+  !!VR(winnerOvermatch:e):S(ovrNum) :(ovrDen) *100;
+!!el&(winnerDom)>=50;
+  !!VR(winnerOvermatch:e):S100; [Сухая победа без потерь (DOM=100, EFF=100)]
+!!el;
+  !!VR(winnerOvermatch:e):S0;
+!!en;
+
+; 3. НОРМАЛИЗАЦИЯ ТАКТИЧЕСКОГО РАЗМЕНА (0..100%)
+; Равный размен 1 к 1 (50%) принимается за 0, чистая победа (100%) — за 100.
+!!VR(normEff:e):S(winnerEff) -50 *2;
+!!VR(normEff)&(normEff)<0:S0;
+!!VR(normEff)&(normEff)>100:S100;
+
+; 4. РАСЧЕТ ВЗВЕШЕННОЙ МАГНИТУДЫ ПЕРЕВЕСА (Шкала 0..100)
+; Веса: 50% сохранность армии (DOM) + 35% подавление остатком (OVR) + 15% чистота размена (EFF_norm)
+!!VR(domPart:e):S(winnerDom) *50 :100;
+!!VR(ovrPart:e):S(winnerOvermatch) *35 :100;
+!!VR(effPart:e):S(normEff) *15 :100;
+
+!!VR(finalMagnitude:e):S(domPart) +(ovrPart) +(effPart);
+
+; Защита диапазона (0..100) и конвертация float -> int
+!!VR(finalMagnitude)&(finalMagnitude)>100:S100;
+!!VR(finalMagnitude)&(finalMagnitude)<0:S0;
+!!VR(outMagnitude):S(finalMagnitude);
+
+; 5. ОПРЕДЕЛЕНИЕ НАПРАВЛЕНИЯ ПЕРЕКОСА (outStateFlag)
+!!if&(outMagnitude)<=0;
+  ; --- ВЕТКА ИДЕАЛЬНОГО БАЛАНСА (Обе стороны истощены в ноль) ---
+  !!VR(outMagnitude):S0;
+  !!VR(outStateFlag):S1;
+!!el&(winnerIsAI)=1;
+  ; --- ВЕТКА САНКЦИЙ (Победил ИИ, нужны ограничения пропорционально outMagnitude) ---
+  !!VR(outStateFlag):S0;
+!!el;
+  ; --- ВЕТКА ПОМОЩИ (Победил Человек, ИИ нужна поддержка пропорционально outMagnitude) ---
+  !!VR(outStateFlag):S1;
+!!en;
+
+
+
+
+
+
+
+; Урезание базового значения на заданный процент (0..100)
+!?FU(h3db_ReduceByPercent);
+!#VA(baseVal:x) (percent:x) (result:x);
+
+!!VR(penalty:y):S(baseVal) *(percent) :100;
+!!VR(result):S(baseVal) -(penalty);
+
+; Подсчет стратегического веса артефактов и заклинаний контроля карты
+!?FU(h3db_GetHeroStrategicWeight);
+!#VA(heroId:x) (totalWeight:x);
+
+!!VR(totalWeight):S0;
+
+; Проверка надетых стратегических артефактов (HE:A2 возвращает всего/надето)
+!!HE(heroId):A2/(ART_ANGEL_WINGS)/?(has:y)/?(eqWings:y);
+!!VR(totalWeight)&(eqWings)>0:+15;
+
+!!HE(heroId):A2/(ART_BOOTS_OF_LEVITATION)/?(has)/?(eqBoots:y);
+!!VR(totalWeight)&(eqBoots)>0:+8;
+
+!!HE(heroId):A2/(ART_SPELLBINDERS_HAT)/?(has)/?(eqHat:y);
+!!VR(totalWeight)&(eqHat)>0:+12;
+
+; Проверка наличия книги магии у героя перед проверкой заклинаний
+!!HE(heroId):A2/(ART_SPELL_BOOK)/?(has)/?(hasBook:y);
+!!if&(hasBook)>0;
+  ; Заклинания глобального контроля карты (HE:M проверяет книгу заклинаний)
+  !!HE(heroId):M(SPELL_DIMENSION_DOOR)/?(hasDD:y);
+  !!VR(totalWeight)&(hasDD)=1:+15;
+
+  !!HE(heroId):M(SPELL_TOWN_PORTAL)/?(hasTP:y);
+  !!VR(totalWeight)&(hasTP)=1:+15;
+
+  !!HE(heroId):M(SPELL_FLY)/?(hasFly:y);
+  !!VR(totalWeight)&(hasFly)=1:+10;
+
+  !!HE(heroId):M(SPELL_WATER_WALK)/?(hasWW:y);
+  !!VR(totalWeight)&(hasWW)=1:+5;
+!!en;
+
+; Получение максимального запаса маны героя (с учетом Первичного навыка Знаний и Интеллекта)
+!?FU(h3db_GetHeroMaxMana); не используется?
+!#VA(heroId:x) (maxMana:x);
+
+!!HE(heroId):F?(atk:y)/?(def:y)/?(pwr:y)/?(knw:y);
+!!VR(knw)&(knw)<1:S1;
+!!VR(maxMana):S(knw) *10;
+
+!!HE(heroId):S(SKILL_INTELLIGENCE)/?(intLvl:y);
+!!if&(intLvl)=1;
+  !!VR(maxMana):*125 :100; [+25% на базовом уровне]
+!!el&(intLvl)=2;
+  !!VR(maxMana):*150 :100; [+50% на продвинутом уровне]
+!!el&(intLvl)>=3;
+  !!VR(maxMana):*2;        [+100% на экспертном уровне]
+!!en;
+
+
+
+; -----------------------------------
+
+; РАЗНОЕ
+
+
+!?FU(h3db_TrackAllTownTerrains);
+; Находит все замки, перемещает героя в координату под замок и определяет тип почвы этой точки.
+; баг, -1 не получит героя в первый день
+!!UN:X?(size:y)/?(hasTwoLv:y); get map size
+!!UN:H0/0/0/9/356;
+!!UN&(hasTwoLv)>0:H0/0/1/9/356;
+!!re i;
+  !!UN:U98/-1/-1/(x:y)/(y:y)/(z:y);
+  !!br&(x)<0;
+  !!VR(y2:y):S(y) -2;
+  !!TR(x)/(y2)/(z):T?(ter:y);
+  !!FU(GetTextFileString):P^terrname.txt^/(ter)/?(strTer:z);
+  *!IF:L^%(strTer)^;
+  !!HE-1:P(x)/(y2)/(z);
+  !!VR(camX:y):S(x) -7;
+  !!VR(camX)&(camX)<0:S0;
+  !!VR(camY:y):S(y2) -1;
+  !!VR(camY)&(camY)<0:S0;
+  !!UN:L(camX)/(camY)/(z)/1200;
+!!en;
+
+
+
+!?FU(h3db_CutPercent);
+!#VA(val:x) (percent:x) (res:x);
+!!FU&(val)<=0:E;
+!!VR(res):S(val);
+!!VR(remPercent:y):S100 -(percent);
+!!VR(remPercent)&(remPercent)<0:S0;
+!!VR(res):S(val) *(remPercent) +50 :100;
+
+!?FU(h3db_AddPercent);
+!#VA(val:x) (percent:x) (res:x);
+!!FU&(val)<=0:E;
+!!VR(res):S(val);
+!!VR(addPercent:y):S100 +(percent);
+!!VR(res):S(val) *(addPercent) +50 :100;
+
+
+; СОХРАНЕНИЕ ТЕКУЩИХ РЕСУРСОВ ВСЕХ ЖИВЫХ ИИ
+!?FU(h3db_SaveAiResources);
+!#VA(player:x);
+!!OW:I(player)/d/?(isDead:y);
+!!if&(isDead)=(FALSE);
+  !!re (res:y)/(RES_FIRST)/(RES_LAST_SOD);
+    !!OW:R(player)/(res)/?i^h3db_aiOldRes_%(player)_%(res)^;
+  !!en;
+!!en;
+
+
+; ФУНКЦИЯ КОРРЕКЦИИ ПРИРОСТА РЕСУРСОВ ВСЕХ ИИ ПО ИХ ПЕРСОНАЛЬНЫМ МОДИФИКАТОРАМ
+!?FU(h3db_ProcessAiResources);
+!!VR(headerPrinted:y):S(FALSE);
+!!VR(headerText:z):S^^;
+!!re (player:y)/(PLAYER_FIRST)/(PLAYER_LAST);
+  !!OW:I(player)/?(isAi:y)/?(isDead:y);
+  !!if&(isDead)=(FALSE)/(isAi)=(TRUE);
+    ; Считываем персональные модификаторы ИИ
+    !!VR(goldMod:y):Si^h3db_aiResGold_%(player)_pctModifier^;
+    !!VR(allMod:y):Si^h3db_aiResAll_%(player)_pctModifier^;
+    *!IF:L^%(player) goldMod %(goldMod) goldMod %(allMod)^;
+    ; Выводим общую строку ResScale один раз в самом начале, затем шапку игрока
+    !!if&i^h3db_LOG^>0;
+      !!if&(headerPrinted)=(FALSE);
+        !!if&i^h3db_LOG^<>5;
+          !!VR(headerText):S^   ?  ResScale   AI RES: Income / Total^;
+          !!FU(h3db_WriteLog):P(headerText)/1;
+        !!en;
+        !!VR(headerPrinted):S(TRUE);
+      !!en;
+
+      !!if&i^h3db_LOG^=5;
+        ; Для краткого лога собираем всех ИИ в одну компактную строку через запятую (в headerText)
+        !!VR(sign:z):S^^;
+        !!VR(sign)&(allMod)>0:S^+^;
+        !!VR(pad:z):S^^;
+        !!VR(pad)&(goldMod)>0:S^+^;
+        !!if&(headerText)=^^;
+          !!VR(headerText):S^   ?  ResScale  >>  PLAYER %(player) [All:%(sign)%(allMod)% Gd:%(pad)%(goldMod)%]^;
+        !!el;
+          !!VR(headerText):+^, PLAYER %(player) [All:%(sign)%(allMod)% Gd:%(pad)%(goldMod)%]^;
+        !!en;
+      !!el;
+        ; Выравнивание пробелами (Padding) для All
+        !!VR(sign):S^^;
+        !!VR(sign)&(allMod)>0:S^+^;
+        !!VR(absAll:y):S(allMod);
+        !!VR(absAll)&(absAll)<0:*-1;
+        !!VR(pad):S^^;
+        !!VR(pad)&(absAll)=0:S^   ^;
+        !!VR(pad)&(absAll)>0/(absAll)<10:S^  ^;
+        !!VR(pad)&(absAll)>=10/(absAll)<100:S^ ^;
+        !!VR(logText:z):S^               PLAYER %(player)  [All:%(pad)%(sign)%(allMod)% ^;
+
+        ; Выравнивание пробелами (Padding) для Gd
+        !!VR(sign):S^^;
+        !!VR(sign)&(goldMod)>0:S^+^;
+        !!VR(absGold:y):S(goldMod);
+        !!VR(absGold)&(absGold)<0:*-1;
+        !!VR(pad):S^^;
+        !!VR(pad)&(absGold)=0:S^   ^;
+        !!VR(pad)&(absGold)>0/(absGold)<10:S^  ^;
+        !!VR(pad)&(absGold)>=10/(absGold)<100:S^ ^;
+        !!VR(logText):+^Gd:%(pad)%(sign)%(goldMod)%]  >>  ^;
+      !!en;
+    !!en;
+
+    !!re (res:y)/(RES_FIRST)/(RES_LAST_SOD);
+      !!if&(res)=(RES_GOLD);
+        !!VR(pct:y):S(goldMod);
+      !!el;
+        !!VR(pct:y):S(allMod);
+      !!en;
+
+      ; Считываем текущие ресурсы и базовый прирост один раз
+      !!OW:R(player)/(res)/?(currentRes:y);
+      !!VR(oldRes:y):Si^h3db_aiOldRes_%(player)_%(res)^;
+      !!VR(income:y):S(currentRes) -(oldRes);
+      !!VR(finalRes:y):S(currentRes);
+
+      ; Если модификатор не нулевой — рассчитываем дельту
+      !!if&(pct)<>0;
+        ; Корректируем только положительный суточный прирост
+        !!if&(income)>0;
+          ; Отрицательный процент: урезание
+          !!if&(pct)<0;
+            !!VR(absPct:y):S0 -(pct);
+            !!FU(h3db_CutPercent):P(income)/(absPct)/?(newIncome:y);
+            ; ЗАЩИТА: не даем обнулить доход при запасах ниже порога (кроме золота)
+            !!if&(res)<>(RES_GOLD)/(oldRes) < (H3DB_MIN_RES_FOR_REDUCE);
+            !!VR(newIncome)&(newIncome)<1:S1;
+            !!en;
+          ; Положительный процент: прибавление
+          !!el;
+            !!FU(h3db_AddPercent):P(income)/(pct)/?(newIncome:y);
+          !!en;
+          !!VR(finalRes):S(oldRes) +(newIncome);
+          !!VR(finalRes)&(finalRes)<0:S0;
+          !!OW:R(player)/(res)/(finalRes);
+          !!VR(income):S(finalRes) -(oldRes);
+        !!en;
+      !!en;
+
+      ; Сборка строки для лога
+      !!if&i^h3db_LOG^>0/i^h3db_LOG^<>5;
+        !!VR(resCode:z)&(res)=0:S^Wd^;
+        !!VR(resCode:z)&(res)=1:S^Mr^;
+        !!VR(resCode:z)&(res)=2:S^Or^;
+        !!VR(resCode:z)&(res)=3:S^Sl^;
+        !!VR(resCode:z)&(res)=4:S^Cr^;
+        !!VR(resCode:z)&(res)=5:S^Gm^;
+        !!VR(resCode:z)&(res)=6:S^Gd^;
+
+        ; 1. Форматируем левую часть (прирост: 3 символа для ресурсов, 6 для золота)
+        !!if&(income)=0;
+          !!VR(incStr:z)&(res)<>(RES_GOLD):S^   ^;
+          !!VR(incStr)&(res)=(RES_GOLD):S^      ^;
+        !!el;
+          !!VR(sign)&(income)<0:S^^;
+          !!VR(sign)&(income)>0:S^+^;
+          !!VR(absInc:y):S(income);
+          !!VR(absInc)&(absInc)<0:*-1;
+          !!VR(incPad:z):S^^;
+          !!if&(res)<>(RES_GOLD);
+            !!VR(incPad)&(absInc)<10:S^ ^;
+          !!el;
+            !!VR(incPad)&(absInc)<10000:S^ ^;
+            !!VR(incPad)&(absInc)<1000:S^  ^;
+            !!VR(incPad)&(absInc)<100:S^   ^;
+            !!VR(incPad)&(absInc)<10:S^    ^;
+          !!en;
+          !!VR(incStr):S^%(incPad)%(sign)%(income)^;
+        !!en;
+
+        ; 2. Форматируем правую часть (запас: 3 знака для ресурсов, 6 для золота)
+        !!VR(pad):S^^;
+        !!if&(res)<>(RES_GOLD);
+          !!VR(pad)&(finalRes)<100:S^ ^;
+          !!VR(pad)&(finalRes)<10:S^  ^;
+        !!el;
+          !!VR(pad)&(finalRes)<100000:S^ ^;
+          !!VR(pad)&(finalRes)<10000:S^  ^;
+          !!VR(pad)&(finalRes)<1000:S^   ^;
+          !!VR(pad)&(finalRes)<100:S^    ^;
+          !!VR(pad)&(finalRes)<10:S^     ^;
+        !!en;
+
+        ; Собираем итоговый блок ресурса
+        !!VR(logText):+^%(resCode) [%(incStr) %(pad)%(finalRes)]^;
+        !!VR(logText)&(res)<(RES_LAST_SOD):+^    ^;
+      !!en;
+    !!en;
+
+    ; Запись собранной строки игрока в лог
+    !!FU(h3db_WriteLog)&i^h3db_LOG^>0/i^h3db_LOG^<>5:P(logText);
+  !!en;
+!!en;
+
+; Вывод единой строки для краткого режима лога (h3db_LOG = 5) с таймстампом
+!!if&i^h3db_LOG^=5/(headerPrinted)=(TRUE);
+  !!FU(h3db_WriteLog):P(headerText)/1;
+!!en;
+
+
+!?FU(h3db_ResetAiResourceModifiers);
+!!re (player:y)/(PLAYER_FIRST)/(PLAYER_LAST);
+  !!VRi^h3db_aiResGold_%(player)_pctModifier^:S0;
+  !!VRi^h3db_aiResAll_%(player)_pctModifier^:S0;
+!!en;
+
+
+; ф-ция для получения армии в виде массива после битвы
+!?FU(h3db_GetAfterCombatArmy);
+!#VA(side:x) (arrayId:x);               [;]
+
+!!SN:M(arrayId)/0;                             [очищаем массив]
+!!VR(start:y):S(side)*21;                      [вычисляем начало]
+!!VR(end:y):S(start) +20;                      [и конец id стаков]
+*!IF:M^start %(start) end %(end)^;
+!!re (stackId:y)/(start)/(end);                  [итерируем стеки]
+  !!BM(stackId):T?(monType:y) N?(count:y) F?(flags:y);
+*!IF:M^stackId %(stackId) monType %(monType) count %(count)^;
+  !!if&(monType)<>(NO_MON);                        [только для монстров, количеством >0]
+    !!VR(isWm:y):S(flags) &(BIT_6);
+    !!VR(isDead:y):S(flags) &(BIT_21);
+    !!VR(isSummon:y):S(flags) &(BIT_22);
+    !!VR(isClone:y):S(flags) &(BIT_23);
+    *!co|(isClone)/(isDead)/(isWm)/(isSummon); [исключаем клонов, трупы, боевые машины и призыв]
+    !!co|(isClone)/(isWm)/(isSummon); [исключаем клонов, боевые машины и призыв]
+    !!co&(isDead)=0/(count)=0;
+    !!BM(stackId):B?(countBeforeBattle:y);
+    !!FU(Array_Push):P(arrayId)/(monType)/(count)/(countBeforeBattle);           [добавляем в массив тип и количество существ]
+  !!en;
+!!en;
+
+
+!?FU(h3db_ResetAiHistory);
+!!re (playerId:y)/(PLAYER_FIRST)/(PLAYER_LAST);
+  !!VR(arrayId:y):Si^h3db_aiHistory_%(playerId)^;
+  !!if&(arrayId)<>0;
+    !!SN:M(arrayId);                      [Полное удаление массива из памяти ERA]
+    !!VRi^h3db_aiHistory_%(playerId)^:S0;   [Сброс переменной]
+  !!en;
+!!en;
+
+
+; Control Screen Redraw (Memory patch for 0x603190 / WindowManager_Redraw)
+
+!?FU(FreezeScreen);
+!!UN:C6304144/4/?i^util_WinRedrawVar^;
+; Патч на RET 16 (0xC2 0x10 0x00 0x90 = -1879043902)
+!!UN:C6304144/4/-1879043902;
+
+!?FU(UnfreezeScreen);
+!!if&i^util_WinRedrawVar^<>0;
+  !!UN:C6304144/4/i^util_WinRedrawVar^;
+  !!VRi^util_WinRedrawVar^:S0;
+  !!SN:D;
+!!en;
+
+
+!?FU(h3db_GetPluginVersion);
+!#VA(versionStr:x);
+!!FU(h3db_GetPluginFunction):P^Utils_CombatEmulator.era^/^GetVersion^/?(function:y);
+!!if&(function);
+  !!SN:E(function)/(CALLCONV_STDCALL);
+  !!SN:Bv1/d/?(version:z);
+!!en;
+!!VR(versionStr):Z(version);
