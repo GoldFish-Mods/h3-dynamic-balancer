@@ -12,8 +12,8 @@
         },
         "short": {
             "Cn_Simp": "",
-            "en_US": "Dynamic AI difficulty and resource income balancing.",
-            "ru_RU": "Динамическая балансировка сложности и прироста ресурсов ИИ."
+            "en_US": "A mod for dynamically adjusting the development of AI players.",
+            "ru_RU": "Мод для динамической корректировки развития компьютерных игроков."
         }
     },
     "author": "GoldFish, daemon_n",
