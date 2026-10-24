@@ -22,7 +22,7 @@
         "file": "h3db.ico",
         "index": 0
     },
-    "mod_version": "0.1.1",
+    "mod_version": "0.1.2",
     "priority": 10,
     "compatibility": {
         "class": "default",
