@@ -255,8 +255,6 @@ ZVSE2
       ; 6. Сглаживаем величину перевеса (персональное окно истории ИИ за 3 дня)
       !!FU(h3db_SmoothOverbalance):P(aiHero)/(finalMag:y)/(finalSide:y)/?(smoothedMag:y);
 
-      !!VR(smoothedMag): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
-
       ; 7. Применяем штрафы или бонусы к экономике, опыту, ходу и мане ИИ
       !!FU(h3db_ApplyAIDifficultyMod):P(aiHero)/(smoothedMag)/(finalSide);
 

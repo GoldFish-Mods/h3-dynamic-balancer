@@ -648,12 +648,17 @@ ZVSE2
   !!VR(sum):+(val);
 !!en;
 !!VR(avgVal:y):S(sum) :(size);
+
+!!VR(avgVal): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
+
 ; 8. Возврат сглаженной величины без знака (0..100)
 !!if&(avgVal)<0;
   !!VR(smoothedMag):S0 -(avgVal);
 !!el;
   !!VR(smoothedMag):S(avgVal);
 !!en;
+
+
 
 
 !?FU(h3db_ApplyAIDifficultyMod);
