@@ -554,6 +554,21 @@ ZVSE2
   !!VR(signedOverbalance:y):S(overbalanceMag);
 !!en;
 
+!!VR(signedOverbalance): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
+!!VR(signedOverbalance)&(signedOverbalance)>100: S100;
+!!VR(signedOverbalance)&(signedOverbalance)<-100: S-100; 
+
+
+!!if&(signedOverbalance)<0;
+  !!VR(finalSide):S0;
+  !!VR(finalMag):S0 -(signedOverbalance);
+!!el;
+  !!VR(finalSide):S1;
+  !!VR(finalMag):S(signedOverbalance);
+!!en;
+*!IF:L^finalSide %(finalSide) finalMag %(finalMag)^;
+!!FU:E;
+
 ; 2. Подсчет стратегических очков героев (артефакты и заклинания контроля карты)
 !!FU(h3db_GetHeroStrategicWeight):P(humanHero)/?(humanScore:y);
 !!FU(h3db_GetHeroStrategicWeight):P(aiHero)/?(aiScore:y);
@@ -648,8 +663,6 @@ ZVSE2
   !!VR(sum):+(val);
 !!en;
 !!VR(avgVal:y):S(sum) :(size);
-
-!!VR(avgVal): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
 
 ; 8. Возврат сглаженной величины без знака (0..100)
 !!if&(avgVal)<0;

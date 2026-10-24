@@ -248,9 +248,9 @@ ZVSE2
       !!FU(h3db_GetEvaluatedCombatAdvantage):P(winnerSide)/(heroOwner)/(winnerHero)/?(overbalanceMag:y)/?(overbalanceSide:y);
 
       ; 5. Корректируем перевес стратегическими факторами (артефакты / заклинания)
-      *!FU(h3db_ApplyStrategicAdvantage):P(humanHero)/(aiHero)/(overbalanceMag)/(overbalanceSide)/?(finalMag:y)/?(finalSide:y);
-      !!VR(finalMag:y):S(overbalanceMag);  ВРЕМЕННО ПЕРЕКИДЫВАЕМ МАГНИТУДУ ПОКА НЕ ИСПОЛЬУЕМ ApplyStrategicAdvantage
-      !!VR(finalSide:y):S(overbalanceSide);
+      !!FU(h3db_ApplyStrategicAdvantage):P(humanHero)/(aiHero)/(overbalanceMag)/(overbalanceSide)/?(finalMag:y)/?(finalSide:y);
+      *!VR(finalMag:y):S(overbalanceMag);  ВРЕМЕННО ПЕРЕКИДЫВАЕМ МАГНИТУДУ ПОКА НЕ ИСПОЛЬУЕМ ApplyStrategicAdvantage
+      *!VR(finalSide:y):S(overbalanceSide);
 
       ; 6. Сглаживаем величину перевеса (персональное окно истории ИИ за 3 дня)
       !!FU(h3db_SmoothOverbalance):P(aiHero)/(finalMag:y)/(finalSide:y)/?(smoothedMag:y);
