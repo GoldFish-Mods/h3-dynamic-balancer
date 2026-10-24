@@ -22,14 +22,14 @@
         "file": "h3db.ico",
         "index": 0
     },
-    "mod_version": "0.1.0",
+    "mod_version": "0.1.1",
     "priority": 10,
     "compatibility": {
         "class": "default",
         "entries": {}
     },
     "platform": "era",
-    "info_version": "1.0.1",
+    "info_version": "1.0",
     "plugins": {},
     "category": "gameplay"
 }
