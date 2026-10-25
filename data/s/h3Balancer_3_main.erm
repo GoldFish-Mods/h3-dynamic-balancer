@@ -21,7 +21,7 @@ ZVSE2
 
 !#DC(H3DB_ISTESTING) = 1;  [displaying debug data in a release build]
 
-!#DC(H3DB_DEBUG) = 1; 
+!#DC(H3DB_DEBUG) = 0; 
 
 ; ---------------------------------
 
