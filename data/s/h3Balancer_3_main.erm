@@ -13,8 +13,8 @@ ZVSE2
 
 ; Master Build Info --------------
 
-!#DC(H3DB_VERSION) = 1;
-!#VRs^h3db_sVer^:S^0.1a^;
+!#DC(H3DB_VERSION) = 2;
+!#VRs^h3db_sVer^:S^0.1.3a^;
 
 
 !#DC(H3DB_BUILD_ID_A) = 8;  [Внутренний номер части скрипта]
