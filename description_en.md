@@ -37,6 +37,7 @@ This mod also gives you a fighting chance to rebuild your army after losing a ma
 #### Compatibility:
 
 - Recommended ERA build version: 2.2+
+- ERA 3.9+, Era Erm Framework
 - Tested with almost all built-in WoG options, including Creature Experience, with no issues found so far.
 - **Warning!** This mod has not yet been tested with major third-party overhaul mods (such as ACM, Difficulty Mod, etc.).
 
