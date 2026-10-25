@@ -1,12 +1,20 @@
 ﻿### H3 Dynamic Balancer
 (aka h3Balancer)
 
-**Mod Version:** **0.1a** *(early testing stage!)*  
+**Mod Version:** **0.1.3a** *(early testing stage!)*  
 **Authors:** GoldFish, daemon_n
 
 A mod that dynamically adjusts the pacing and progression of AI players.
 
 Based on the overall army strength of the human player compared to enemy forces, the algorithm automatically buffs or nerfs the AI, adapting your opponents to match your pacing.
+
+#### Changelog:
+
+**0.1.3a**
+- Added mod configuration files: `h3Balancer_preset.ini`, `h3Balancer.ini`
+- Added in-game chat commands to control the mod
+- Updated the balance control algorithm
+- Various fixes and minor improvements
 
 #### What this mod helps with:
 - Smoothing out balance issues in modpacks with altered creatures, magic, and hero skills/specialties.
@@ -34,15 +42,13 @@ This mod also gives you a fighting chance to rebuild your army after losing a ma
 
 Any discovered compatibility issues will be addressed in upcoming updates whenever possible.
 
-#### Current Version Notes (0.1a):
+#### Current Version Notes (0.1.3a):
 
 - Currently, only **part of the planned functionality** is implemented. Right now, the mod regulates game pacing strictly through resources. While it has yet to reach its full potential, it already functions as a solid progression balancer between you and the AI.
 - In the current version, pacing is balanced linearly — the script continuously tweaks the AI players' resource income. This creates fairly strict control boundaries and currently lacks a natural element of randomness in how opponents develop over the course of a match.
-- Since this is the very first release, it requires further testing and fine-tuning. If needed, you can manually adjust the balance offset in `\data\s\h3Balancer_0_CONF.erm` by changing the `(ADJUSTMENT_AMOUNT)` constant within the range of `[-100 (human advantage) ... 100 (AI advantage)]`. *(If you want to tweak this value mid-game, simply edit the constant and press **F12** to reload ERM scripts).*
+- Since this is an early release, it requires further testing and fine-tuning. If needed, you can manually adjust the balance offset in `\Mods\H3 Dynamic Balancer\h3Balancer_preset.ini` by changing the `adjustmentAmount` parameter within the range of `[-100 (human advantage) ... 100 (AI advantage)]`. *(If you want to tweak this value mid-game, simply edit the parameter and type `bal conf` into the in-game chat to reload the configuration files).*
 
-The configuration file also includes the following settings:
-- `(H3DB_MIN_RES_FOR_REDUCE) = 15;` — the minimum amount of each resource (excluding Gold) that the AI will always retain.
-- `(H3DB_START_FROM_DAY) = 10;` — the in-game day when the balancing algorithm kicks in.
+Additional mod settings with detailed descriptions for each are also available in the `h3Balancer_preset.ini` file.
 
 #### Feedback:
 

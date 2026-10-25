@@ -1,9 +1,24 @@
 ZVSE2
 
-!#DC(H3DB_BUILD_ID_B) = 5;
-  ; ----------------------------------------------------
+!#DC(H3DB_BUILD_ID_B) = 8;
 
-  ;                     FUNCTIONS
+
+
+; КОНСТАНТЫ ПО УМОЛЧАНИЮ (ЗАЩИТА ПРИ ОТСУТСТВИИ ФАЙЛОВ)
+
+; h3Balancer.ini
+!#DC(H3DB_DEF_TEST_KEY1)   = 99;
+!#DC(H3DB_DEF_TEST_KEY2)   = -100;
+
+; h3Balancer_preset.ini
+!#DC(H3DB_DEF_PRESET_KEY1) = 50;
+!#DC(H3DB_DEF_PRESET_KEY2) = -25;
+
+
+
+; ----------------------------------------------------
+
+;                     FUNCTIONS
 
 
 !?FU(h3db_CombiningPlayerArmy);
@@ -177,6 +192,13 @@ ZVSE2
   !!FU(WriteLogToFile):P(constPath)/(text);
 !!en;
 
+!?FU(h3db_dumpVarToLog);
+!!VR(textlog:z):S^h3db_LOG(%i(h3db_LOG)),  startFromDay(%i(h3db_startFromDay)),  adjustmentAmount(%i(h3db_adjustmentAmount)), emaGrowthPct(%i(h3db_emaGrowthPct)), emaDecayPct(%i(h3db_emaDecayPct)),
+emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForReduce)),^;
+!!FU(h3db_WriteLog):P^^;
+!!FU(h3db_WriteLog):P^VAR DUMP:^;
+!!FU(h3db_WriteLog):P(textlog);
+!!FU(h3db_WriteLog):P^^;
 
 !?FU(h3db_GetFormattedDateTime);
 ; Getting the system date and time as a text
@@ -214,8 +236,6 @@ ZVSE2
 
 !?FU(h3db_LogPlayersState);
 ; печатает текущее состояние армий
-
-
   !!FU(h3db_WriteLog):P^^;
   !!FU(h3db_WriteLog):P^^;
   !!FU(h3db_WriteLog):P^                - PLAYERS INFO -^;
@@ -244,7 +264,6 @@ ZVSE2
   !!FU(h3db_WriteLog):P(str);
 !!en;
 !!FU(h3db_WriteLog):P^   -------------------------------------------^;
-
 
 
 ; 1. СОХРАНЕНИЕ АРМИЙ С ФОРМАЛЬНЫМ ОБЪЕДИНЕНИЕМ ОДИНАКОВЫХ СТЕКОВ
@@ -349,7 +368,7 @@ ZVSE2
     !!VR(townStatusStr:z):S^^;
     !!if&(townId)>-1;
       !!CA0/(townId):N?(townName:z);
-      !!VR(townStatusStr):S^   #_ПОЗИЦИЯ_# [ЗАМ: %(townName), СЛОТ: %(heroSlot)]^;
+      !!VR(townStatusStr):S^   #_POSITION_# [CASTLE: %(townName), SLOT: %(heroSlot)]^;
     !!en;
 
     !!if&(logType)=1;
@@ -387,12 +406,12 @@ ZVSE2
           !!en;
           !!if&(srcType)=1;
             !!CA(v1)/(v2)/(v3):N?(srcName:z);
-            !!VR(gatherStr):+^ЗАМ:%(srcName)^;
+            !!VR(gatherStr):+^CAST:%(srcName)^;
           !!el&(srcType)=2;
-            !!VR(gatherStr):+^ГАР:%(v1).%(v2).%(v3)^;
+            !!VR(gatherStr):+^GARR:%(v1).%(v2).%(v3)^;
           !!el&(srcType)=3;
             !!HE(v1):B0/?(srcName:z);
-            !!VR(gatherStr):+^ГЕР:%(srcName)^;
+            !!VR(gatherStr):+^HERO:%(srcName)^;
           !!en;
         !!en;
       !!en;
@@ -401,7 +420,7 @@ ZVSE2
   !!if&i^h3db_LOG^>0;
     !!if&(logType)=1;
       !!if&(gatherStr)<>^^;
-        !!VR(logFirstLine):+^      # сбор (%(gatherStr))^;
+        !!VR(logFirstLine):+^      # gather (%(gatherStr))^;
       !!en;
       !!VR(logFirstLine2:z):S^   PL_%(savedOwner)    --  %(champMark)%(heroName)  --  %(logFirstLine)^;
       !!FU(h3db_WriteLog):P(logFirstLine2);
@@ -534,169 +553,115 @@ ZVSE2
 
 
 
+; ---------------------------------------------------------
 
 
-  ;  АЛГОРИТМЫ БАЛАНСА
+;  АЛГОРИТМЫ БАЛАНСА
 
-; ==============================================================================
+!#DC(H3DB_MAX_STRAT_SHIFT) = 30; [Максимальное стратегическое смещение магнитуды] В ДОРАБОТКЕ!
+
 ; ФУНКЦИЯ: Оценить_Стратегическое_Преимущество
-; Корректирует тактический перевес с учетом мобильности и контроля карты
-; ==============================================================================
-!?FU(h3db_ApplyStrategicAdvantage); не используется?
-!#VA(humanHero:x) (aiHero:x) (overbalanceMag:x) (overbalanceSide:x) (finalMag:x) (finalSide:x);
+; Корректирует знаковый тактический перевес (-100..+100) с учетом контроля карты
+!?FU(h3db_ApplyStrategicAdvantage);
+!#VA(humanHero:x) (aiHero:x) (overbalanceMag:x) (finalMag:x);
 
-!!VR(maxShift:y):S30; [константа: максимальное смещение = 30]
+; 1. Ручная коррекция знаковой магнитуды (- ИИ доминирует, + Человек доминирует)
+!!VR(signedOverbalance:y):S(overbalanceMag) +i^h3db_adjustmentAmount^;
+!!VR(signedOverbalance)&(signedOverbalance)>100:S100;
+!!VR(signedOverbalance)&(signedOverbalance)<-100:S-100;
 
-; 1. Приведение боевого перевеса к знаковому числу (0 = Человек / минус, 1 = ИИ / плюс)
-!!if&(overbalanceSide)=0;
-  !!VR(signedOverbalance:y):S0 -(overbalanceMag);
-!!el;
-  !!VR(signedOverbalance:y):S(overbalanceMag);
-!!en;
-
-!!VR(signedOverbalance): +(ADJUSTMENT_AMOUNT);  ручная коррекция магнитуды
-!!VR(signedOverbalance)&(signedOverbalance)>100: S100;
-!!VR(signedOverbalance)&(signedOverbalance)<-100: S-100; 
-
-
-!!if&(signedOverbalance)<0;
-  !!VR(finalSide):S0;
-  !!VR(finalMag):S0 -(signedOverbalance);
-!!el;
-  !!VR(finalSide):S1;
-  !!VR(finalMag):S(signedOverbalance);
-!!en;
-*!IF:L^finalSide %(finalSide) finalMag %(finalMag)^;
+!!VR(finalMag):S(signedOverbalance);
+*!IF:L^finalMag %(finalMag)^;
 !!FU:E;
 
 ; 2. Подсчет стратегических очков героев (артефакты и заклинания контроля карты)
 !!FU(h3db_GetHeroStrategicWeight):P(humanHero)/?(humanScore:y);
 !!FU(h3db_GetHeroStrategicWeight):P(aiHero)/?(aiScore:y);
 
-; 3. Вычисление разницы потенциалов (+ в пользу ИИ, - в пользу Человека)
-!!VR(stratDelta:y):S(aiScore) -(humanScore);
+; 3. Вычисление разницы потенциалов (+ в пользу Человека/помощь ИИ, - в пользу ИИ/санкции)
+!!VR(stratDelta:y):S(humanScore) -(aiScore);
 
-; 4. Ограничение стратегического смещения пределами (-maxShift .. +maxShift)
-!!VR(minShift:y):S0 -(maxShift);
-!!if&(stratDelta)>(maxShift);
-  !!VR(stratDelta):S(maxShift);
+; 4. Ограничение стратегического смещения пределами (-H3DB_MAX_STRAT_SHIFT .. +H3DB_MAX_STRAT_SHIFT)
+!!VR(minShift:y):S0 -(H3DB_MAX_STRAT_SHIFT);
+!!if&(stratDelta)>(H3DB_MAX_STRAT_SHIFT);
+  !!VR(stratDelta):S(H3DB_MAX_STRAT_SHIFT);
 !!el&(stratDelta)<(minShift);
   !!VR(stratDelta):S(minShift);
 !!en;
 
-; 5. Наложение стратегической поправки на боевой перевес
-!!VR(finalSigned:y):S(signedOverbalance) +(stratDelta);
-
-; 6. Удержание результата в общих границах шкалы (-100..100)
-!!if&(finalSigned)>100;
-  !!VR(finalSigned):S100;
-!!el&(finalSigned)<-100;
-  !!VR(finalSigned):S-100;
-!!en;
-
-; 7. Разбор обратно на итоговую величину (0..100) и итоговую сторону (0..1)
-!!if&(finalSigned)<0;
-  !!VR(finalSide):S0;
-  !!VR(finalMag):S0 -(finalSigned);
-!!el;
-  !!VR(finalSide):S1;
-  !!VR(finalMag):S(finalSigned);
-!!en;
+; 5. Наложение стратегической поправки и удержание в границах (-100..+100)
+!!VR(finalMag):S(signedOverbalance) +(stratDelta);
+!!VR(finalMag)&(finalMag)>100:S100;
+!!VR(finalMag)&(finalMag)<-100:S-100;
 
 
-; ==============================================================================
-; ФУНКЦИЯ: Сгладить_Величину_Перевеса
-; Скользящее среднее (окно 3 дня) с мгновенным сбросом при смене лидера
-; ==============================================================================
+; ФУНКЦИЯ: Сгладить_Величину_Перевеса (EMA — Безмассивное инерционное сглаживание)
+; Плавное процентное сближение с мгновенным сбросом при смене лидера
 !?FU(h3db_SmoothOverbalance);
-!#VA(aiHero:x) (finalMag:x) (finalSide:x) (smoothedMag:x);
+!#VA(aiHero:x) (finalMag:x) (smoothedMag:x);
 
-; 1. Получение владельца героя ИИ для привязки к его персональной истории
+; 1. Получение владельца героя ИИ и его прошлого сглаженного значения
 !!HE(aiHero):O?(aiPlayer:y);
+!!VR(currVal:y):S(finalMag);
+!!VR(prevVal:y):Si^h3db_aiHistory_%(aiPlayer)^;
 
-; 2. Приведение к знаковому числу (0 = Человек / минус, 1 = ИИ / плюс)
-!!if&(finalSide)=0;
-  !!VR(currVal:y):S0 -(finalMag);
+; 2. Проверка на первый замер (H3DB_HISTORY_EMPTY) или смену лидера (разворот знака)
+!!VR(isReset:y):S(FALSE);
+!!VR(isReset)&(prevVal)=(H3DB_HISTORY_EMPTY):S(TRUE);
+!!VR(isReset)&(prevVal)>0/(currVal)<0:S(TRUE);
+!!VR(isReset)&(prevVal)<0/(currVal)>0:S(TRUE);
+
+!!if&(isReset)=(TRUE);
+  !!VR(smoothedMag):S(currVal);
 !!el;
-  !!VR(currVal:y):S(finalMag);
-!!en;
-; 3. Получение истории конкретного ИИ-игрока (ленивая инициализация с M_STORED)
-!!VR(arrayId:y):Si^h3db_aiHistory_%(aiPlayer)^;
-!!if&(arrayId)=0;
-  !!FU(NewIntArray):P0/0/?(arrayId)/(M_STORED);
-  !!VRi^h3db_aiHistory_%(aiPlayer)^:S(arrayId);
-!!en;
+  ; 3. Вычисляем разницу и проверяем порог доводки (Snap threshold)
+  !!VR(diff:y):S(currVal) -(prevVal);
+  !!VR(absDiff:y):S(diff);
+  !!VR(absDiff)&(absDiff)<0:*-1;
 
-!!SN:M(arrayId)/?(size:y);
-; 4. Проверка на дубликат и смену вектора (сброс истории при развороте знака)
-!!if&(size)>0;
-  !!VR(lastIdx:y):S(size) -1;
-  !!SN:M(arrayId)/(lastIdx)/?(prevVal:y);
+  !!if&(absDiff)<=i^h3db_emaSnapThreshold^;
+    !!VR(smoothedMag):S(currVal);
+  !!el;
+    ; 4. Определяем режим: рост перевеса (по модулю) или спад к балансу
+    !!VR(absCurr:y):S(currVal);
+    !!VR(absCurr)&(absCurr)<0:*-1;
+    !!VR(absPrev:y):S(prevVal);
+    !!VR(absPrev)&(absPrev)<0:*-1;
 
-  ; Атомарная проверка смены знака без смешивания & и | в одном условии
-  !!VR(isSignFlipped:y):S(FALSE);
-  !!VR(isSignFlipped)&(prevVal)>0/(currVal)<0:S(TRUE);
-  !!VR(isSignFlipped)&(prevVal)<0/(currVal)>0:S(TRUE);
+    !!if&(absCurr)>(absPrev);
+      !!VR(emaPct:y):Si^h3db_emaGrowthPct^;
+    !!el;
+      !!VR(emaPct:y):Si^h3db_emaDecayPct^;
+    !!en;
 
-  !!if&(isSignFlipped)=(TRUE);
-    !!SN:M(arrayId)/0; [очищаем динамический массив]
-    !!VR(size):S0;
+    ; 5. Вычисляем шаг сближения с округлением к ближайшему целому и гарантией мин. шага в 1 пункт
+    !!if&(diff)>0;
+      !!VR(step:y):S(diff) *(emaPct) +50 :100;
+      !!VR(step)&(step)<1:S1;
+    !!el;
+      !!VR(step:y):S(diff) *(emaPct) -50 :100;
+      !!VR(step)&(step)>-1:S-1;
+    !!en;
+
+    !!VR(smoothedMag):S(prevVal) +(step);
   !!en;
 !!en;
 
-; 5. Добавление свежего значения в конец истории
-!!FU(Array_Push):P(arrayId)/(currVal);
-!!SN:M(arrayId)/?(size);
-; 6. Ограничение окна истории до 3 значений (текущее + 2 старых)
-!!if&(size)>3;
-  ; Удаляем 1 самый старый элемент начиная с индекса 0
-  !!FU(Array_Splice):P(arrayId)/0/1;
-  !!VR(size):S3;
-!!en;
-
-; 7. Подсчет среднего арифметического
-!!VR(sum:y):S0;
-!!VR(lastIdx:y):S(size) -1;
-
-!!re i/0/(lastIdx);
-  !!SN:M(arrayId)/i/?(val:y);
-  !!VR(sum):+(val);
-!!en;
-!!VR(avgVal:y):S(sum) :(size);
-
-; 8. Возврат сглаженной величины без знака (0..100)
-!!if&(avgVal)<0;
-  !!VR(smoothedMag):S0 -(avgVal);
-!!el;
-  !!VR(smoothedMag):S(avgVal);
-!!en;
+; 6. Сохраняем обновленное знаковое значение в историю ИИ
+!!VRi^h3db_aiHistory_%(aiPlayer)^:S(smoothedMag);
 
 
-
-
+; ФУНКЦИЯ: Применить_Модификаторы_Сложности_ИИ
+; Записывает знаковую магнитуду (- санкции / + бонусы) в модификаторы игрока ИИ
 !?FU(h3db_ApplyAIDifficultyMod);
-!#VA(aiHero:x) (overbalanceMag:x) (overbalanceSide:x);
+!#VA(aiHero:x) (overbalanceMag:x);
 
-; Получаем владельца героя (номер игрока ИИ)
 !!HE(aiHero):O?(player:y);
-
-; ВЕТКА А: Перевес на стороне ИИ (side = 0) -> Урезание параметров (Санкции)
-!!if&(overbalanceSide)=0;
-  ; Задаем отрицательный процент модификатора по величине магнитуды
-  !!VRi^h3db_aiResGold_%(player)_pctModifier^:S0 -(overbalanceMag);
-  !!VRi^h3db_aiResAll_%(player)_pctModifier^:S0 -(overbalanceMag);
-
-; ВЕТКА Б: Перевес на стороне Человека (side = 1) -> Прирост параметров (Бонусы)
-!!el;
-  ; Задаем положительный процент модификатора по величине магнитуды
-  !!VRi^h3db_aiResGold_%(player)_pctModifier^:S(overbalanceMag);
-  !!VRi^h3db_aiResAll_%(player)_pctModifier^:S(overbalanceMag);
-!!en;
-; Применение рассчитанных параметров к игроку ИИ и его чемпиону
-
+!!VRi^h3db_aiResGold_%(player)_pctModifier^:S(overbalanceMag);
+!!VRi^h3db_aiResAll_%(player)_pctModifier^:S(overbalanceMag);
 
 !?FU(h3db_GetEvaluatedCombatAdvantage);
-!#VA(winnerSide:x) (rightSide:x) (victoryHero:x) (powerOverbalanceMagnitude:x) (overbalanceSide:x);
+!#VA(winnerSide:x) (rightSide:x) (victoryHero:x) (powerOverbalanceMagnitude:x);
 
 ; 1. ПОЛУЧЕНИЕ АРМИЙ И ПОДСЧЁТ МОЩИ (AI VALUE)
 ; ----------------------------------------------------------------
@@ -843,12 +808,16 @@ ZVSE2
 !!HE(victoryHero):O?(winnerOwner:y);
 !!OW:I(winnerOwner)/?(winnerIsAI:y);
 
-; Вычисляем магнитуду перевеса (powerOverbalanceMagnitude).
-; Шкала от 0 до 100 отражает реальный стратегический перевес победителя:
-; 0   — пиррова победа на волоске (обе армии взаимно уничтожены, баланс не нарушен).
-; 50  — ощутимый перекос сил (сохранена половина армии и подавлен противник).
-; 100 — тотальный разгром врага всухую.
-!!FU(h3db_CalculateAIDifficultyMod):P(winnerIsAI)/(dominancePercent)/(efficiencyPercent)/?(powerOverbalanceMagnitude)/?(overbalanceSide);
+; Конвертируем float-проценты в обычные целые числа (int) перед передачей в функцию
+!!VR(domInt:y):S(dominancePercent);
+!!VR(effInt:y):S(efficiencyPercent);
+!!VR(ovrInt:y):S(overmatchPercent);
+
+; Вычисляем знаковую магнитуду перевеса (powerOverbalanceMagnitude: -100..+100).
+; 0        — пиррова победа на волоске (обе армии взаимно уничтожены, баланс не нарушен).
+; -50/+50  — ощутимый перекос сил (сохранена половина армии и подавлен противник).
+; -100/100 — тотальный разгром врага всухую (- в пользу ИИ, + в пользу Человека).
+!!FU(h3db_CalculateAIDifficultyMod):P(winnerIsAI)/(domInt)/(effInt)/(ovrInt)/?(powerOverbalanceMagnitude);
 
 ; 4. ВЫВОД РАСЧЁТНЫХ ПОКАЗАТЕЛЕЙ И СТАТИСТИКИ БОЯ
 ; ----------------------------------------------------------------
@@ -867,11 +836,11 @@ ZVSE2
 
   !!if&i^h3db_LOG^=-2;
     !!IF:M^PLAYER vs {%(loserSideStr)} WIN: %(batResult)%T(era.endl)HERO (winner): {%(heroName)}%T(era.endl)%(text)
-    DOMINANCE {%(dominancePercent)}%T(era.endl)MAGNITUDE: {%(powerOverbalanceMagnitude)}%T(era.endl)SIDE: {%(overbalanceSide)}^;
+    DOMINANCE {%(dominancePercent)}%T(era.endl)MAGNITUDE: {%(powerOverbalanceMagnitude)}^;
   !!el;
     !!IF:M^PLAYER vs {%(loserSideStr)} WIN: %(batResult)%T(era.endl)HERO (winner): {%(heroName)}%T(era.endl)%T(era.endl)%(text)
     dominancePercent {%(dominancePercent)}%T(era.endl)netEfficiency {%(netEfficiency)}%T(era.endl)efficiencyPercent {%(efficiencyPercent)}%T(era.endl)overmatchPercent {%(overmatchPercent)}
-    powerOverbalanceMagnitude: {%(powerOverbalanceMagnitude)}%T(era.endl)overbalanceSide: {%(overbalanceSide)}^;
+    powerOverbalanceMagnitude: {%(powerOverbalanceMagnitude)}^;
   !!en;
 !!en;
 
@@ -888,7 +857,7 @@ ZVSE2
   !!FU(h3db_WriteLog)&i^h3db_LOG^<>5:P(logUnitsText); 
   ; 2 этап: сборка и вывод строки статов (используем напрямую e-переменные для float)
   !!if&i^h3db_LOG^<>5;
-    !!VR(logStatsText:z):S^            STATS: DOM:%(dominancePercent) NET:%(netEfficiency) EFF:%(efficiencyPercent) OVR:%(overmatchPercent) MAG:%(powerOverbalanceMagnitude) SIDE:%(overbalanceSide)^;
+    !!VR(logStatsText:z):S^            STATS: DOM:%(dominancePercent) NET:%(netEfficiency) EFF:%(efficiencyPercent) OVR:%(overmatchPercent) MAG:%(powerOverbalanceMagnitude)^;
     !!FU(h3db_WriteLog):P(logStatsText);
   !!en;
 !!en;
@@ -896,81 +865,62 @@ ZVSE2
 
 
 !?FU(h3db_CalculateAIDifficultyMod);
-!#VA(winnerIsAI:x) (winnerDominance:x) (winnerEfficiency:x) (outMagnitude:x) (outStateFlag:x);
+!#VA(winnerIsAI:x) (winnerDom:x) (winnerEff:x) (winnerOvr:x) (outMagnitude:x);
 
 ; ==============================================================================
-; ФУНКЦИЯ РАСЧЕТА МАГНИТУДЫ ДИСБАЛАНСА (Symmetric Overbalance Model)
+; ФУНКЦИЯ РАСЧЕТА МАГНИТУДЫ ДИСБАЛАНСА (Symmetric Overbalance Model, чистый int)
 ; ------------------------------------------------------------------------------
 ; Входящие параметры:
-; winnerIsAI       : Флаг победителя (0 = Игрок, 1 = ИИ)
-; winnerDominance  : float (x -> сырые байты), Сохранность армии победителя (0-100%)
-; winnerEfficiency : float (x -> сырые байты), Эффективность размена потерь (0-100%)
+; winnerIsAI   : Флаг победителя (0 = Игрок, 1 = ИИ)
+; winnerDom    : int (0..100%), Сохранность армии победителя
+; winnerEff    : int (0..100%), Эффективность размена потерь
+; winnerOvr    : int (0..100%), Подавление выжившим остатком армии
 ; 
 ; Исходящие параметры:
-; outMagnitude     : int (x), Магнитуда перевеса (0 = равный бой на истощение, 50 = средний перевес, 100 = сухой разгром)
-; outStateFlag     : int (x), Направление перекоса (1 = ИИ нужна помощь/баланс, 0 = ИИ слишком силен, нужны санкции)
+; outMagnitude : int (-100..+100), Знаковая магнитуда перевеса:
+;                 0        = идеальный баланс (равный бой на истощение)
+;                -1..-100  = перевес ИИ (нужны санкции ИИ)
+;                +1..+100  = перевес Человека (нужна помощь ИИ)
 ; ==============================================================================
 
-; 1. РАСПАКОВКА ВХОДНЫХ МЕТРИК ПОБЕДИТЕЛЯ (Симметрично для ИИ и Человека)
-!!VR(winnerDom:e):C(winnerDominance);
-!!VR(winnerEff:e):C(winnerEfficiency);
+; 1. ЗАЩИТА ВХОДНЫХ ДИАПАЗОНОВ (0..100)
+!!VR(dom:y):S(winnerDom);
+!!VR(dom)&(dom)<0:S0;
+!!VR(dom)&(dom)>100:S100;
 
-!!VR(winnerDom)&(winnerDom)<0:S0;
-!!VR(winnerDom)&(winnerDom)>100:S100;
-!!VR(winnerEff)&(winnerEff)<0:S0;
-!!VR(winnerEff)&(winnerEff)>100:S100;
+!!VR(eff:y):S(winnerEff);
+!!VR(eff)&(eff)<0:S0;
+!!VR(eff)&(eff)>100:S100;
 
-; 2. ВЫЧИСЛЕНИЕ ПОДАВЛЕНИЯ ОСТАТКОМ АРМИИ (Overmatch Percent, 0..100%)
-; Показывает отношение выжившей мощи победителя ко всей уничтоженной мощи врага.
-; Выводится аналитически из DOM и EFF:
-; OVR = (DOM * (100 - EFF)) / (DOM * (100 - EFF) + EFF * (100 - DOM)) * 100
-!!VR(invEff:e):S100 -(winnerEff);
-!!VR(invDom:e):S100 -(winnerDom);
-!!VR(ovrNum:e):S(winnerDom) *(invEff);
-!!VR(ovrLoss:e):S(winnerEff) *(invDom);
-!!VR(ovrDen:e):S(ovrNum) +(ovrLoss);
+!!VR(ovr:y):S(winnerOvr);
+!!VR(ovr)&(ovr)<0:S0;
+!!VR(ovr)&(ovr)>100:S100;
 
-!!if&(ovrDen)>0;
-  !!VR(winnerOvermatch:e):S(ovrNum) :(ovrDen) *100;
-!!el&(winnerDom)>=50;
-  !!VR(winnerOvermatch:e):S100; [Сухая победа без потерь (DOM=100, EFF=100)]
-!!el;
-  !!VR(winnerOvermatch:e):S0;
-!!en;
-
-; 3. НОРМАЛИЗАЦИЯ ТАКТИЧЕСКОГО РАЗМЕНА (0..100%)
+; 2. НОРМАЛИЗАЦИЯ ТАКТИЧЕСКОГО РАЗМЕНА (0..100%)
 ; Равный размен 1 к 1 (50%) принимается за 0, чистая победа (100%) — за 100.
-!!VR(normEff:e):S(winnerEff) -50 *2;
+!!VR(normEff:y):S(eff) -50 *2;
 !!VR(normEff)&(normEff)<0:S0;
 !!VR(normEff)&(normEff)>100:S100;
 
-; 4. РАСЧЕТ ВЗВЕШЕННОЙ МАГНИТУДЫ ПЕРЕВЕСА (Шкала 0..100)
+; 3. РАСЧЕТ ВЗВЕШЕННОЙ МАГНИТУДЫ ПЕРЕВЕСА (Шкала 0..100)
 ; Веса: 50% сохранность армии (DOM) + 35% подавление остатком (OVR) + 15% чистота размена (EFF_norm)
-!!VR(domPart:e):S(winnerDom) *50 :100;
-!!VR(ovrPart:e):S(winnerOvermatch) *35 :100;
-!!VR(effPart:e):S(normEff) *15 :100;
+!!VR(totalWeighted:y):S(dom) *50;
+!!VR(ovrWeighted:y):S(ovr) *35;
+!!VR(effWeighted:y):S(normEff) *15;
+!!VR(finalMagnitude:y):S(totalWeighted) +(ovrWeighted) +(effWeighted) +50 :100;
 
-!!VR(finalMagnitude:e):S(domPart) +(ovrPart) +(effPart);
-
-; Защита диапазона (0..100) и конвертация float -> int
+; Защита диапазона (0..100)
 !!VR(finalMagnitude)&(finalMagnitude)>100:S100;
 !!VR(finalMagnitude)&(finalMagnitude)<0:S0;
-!!VR(outMagnitude):S(finalMagnitude);
 
-; 5. ОПРЕДЕЛЕНИЕ НАПРАВЛЕНИЯ ПЕРЕКОСА (outStateFlag)
-!!if&(outMagnitude)<=0;
-  ; --- ВЕТКА ИДЕАЛЬНОГО БАЛАНСА (Обе стороны истощены в ноль) ---
+; 4. ЗАДАНИЕ ЗНАКА МАГНИТУДЫ (- ИИ доминирует / + Человек доминирует)
+!!if&(finalMagnitude)<=0;
   !!VR(outMagnitude):S0;
-  !!VR(outStateFlag):S1;
 !!el&(winnerIsAI)=1;
-  ; --- ВЕТКА САНКЦИЙ (Победил ИИ, нужны ограничения пропорционально outMagnitude) ---
-  !!VR(outStateFlag):S0;
+  !!VR(outMagnitude):S0 -(finalMagnitude);
 !!el;
-  ; --- ВЕТКА ПОМОЩИ (Победил Человек, ИИ нужна поддержка пропорционально outMagnitude) ---
-  !!VR(outStateFlag):S1;
+  !!VR(outMagnitude):S(finalMagnitude);
 !!en;
-
-
 
 
 
@@ -1169,7 +1119,7 @@ ZVSE2
             !!VR(absPct:y):S0 -(pct);
             !!FU(h3db_CutPercent):P(income)/(absPct)/?(newIncome:y);
             ; ЗАЩИТА: не даем обнулить доход при запасах ниже порога (кроме золота)
-            !!if&(res)<>(RES_GOLD)/(oldRes) < (H3DB_MIN_RES_FOR_REDUCE);
+            !!if&(res)<>(RES_GOLD)/(oldRes) < i^h3db_minResForReduce^;
             !!VR(newIncome)&(newIncome)<1:S1;
             !!en;
           ; Положительный процент: прибавление
@@ -1278,11 +1228,7 @@ ZVSE2
 
 !?FU(h3db_ResetAiHistory);
 !!re (playerId:y)/(PLAYER_FIRST)/(PLAYER_LAST);
-  !!VR(arrayId:y):Si^h3db_aiHistory_%(playerId)^;
-  !!if&(arrayId)<>0;
-    !!SN:M(arrayId);                      [Полное удаление массива из памяти ERA]
-    !!VRi^h3db_aiHistory_%(playerId)^:S0;   [Сброс переменной]
-  !!en;
+  !!VRi^h3db_aiHistory_%(playerId)^:S(H3DB_HISTORY_EMPTY); [Сброс инерционной истории ИИ]
 !!en;
 
 
@@ -1309,3 +1255,110 @@ ZVSE2
   !!SN:Bv1/d/?(version:z);
 !!en;
 !!VR(versionStr):Z(version);
+
+
+
+
+
+
+
+
+; ####################################################
+; ----------------------------------------------------
+; ----------------------------------------------------
+; ----------------------------------------------------
+
+
+
+  ;              FUNCTIONS  ---   INI
+
+
+; инициализация и чтение обоих INI-файлов
+!?FU(h3db_InitAndLoadAllConfigs);
+; 1. Читаем основной конфиг напрямую из папки мода (без записи в Runtime)
+!!FU(h3db_LoadMainModIni):P;
+; 2. Синхронизируем и читаем файл пресета (приоритет у Runtime/h3Balancer_preset.ini)
+!!FU(h3db_LoadAndSyncPresetIni):P;
+
+; Чтение базового h3Balancer.ini (Только из папки мода)
+; Если файл удален — автоматически подставляются константы H3DB_...
+!?FU(h3db_LoadMainModIni);
+; Сбрасываем кэш в памяти, чтобы подхватить свежие правки из папки мода
+!!FU(ClearIniCache):P^h3Balancer.ini^;
+
+; Читаем ключи. Если файла или ключа нет — берутся константы по умолчанию
+!!FU(ReadIniInts):P^h3Balancer.ini^/^main^/
+  ^logToFile^/?i^h3db_LOG^/(H3DB_LOG);
+
+
+; Синхронизация и чтение h3Balancer_preset.ini (Мод -> Runtime)
+; Обеспечивает:
+;   1. Приоритет настроек игрока из Runtime/h3Balancer_preset.ini
+;   2. Дозапись новых ключей из папки мода при их отсутствии после обновления
+;   3. Защиту константами и авто-генерацию файла, если удалены оба INI
+!?FU(h3db_LoadAndSyncPresetIni);
+; 1. Очищаем кэш обоих файлов пресета
+!!FU(ClearIniCache):P^Runtime/h3Balancer_preset.ini^;
+!!FU(ClearIniCache):P^h3Balancer_preset.ini^;
+
+; 2. Сначала читаем эталонный пресет из папки мода во временные переменные.
+;    Если файла в папке мода нет — подставятся константы H3DB_...
+!!FU(ReadIniInts):P^h3Balancer_preset.ini^/^difficulty^/
+  ^startFromDay^/?(defStartFromDay:y)/(H3DB_START_FROM_DAY)/
+  ^adjustmentAmount^/?(defAdjustmentAmount:y)/(H3DB_ADJUSTMENT_AMOUNT);
+
+!!FU(ReadIniInts):P^h3Balancer_preset.ini^/^smoothing^/
+  ^emaGrowthPct^/?(defEmaGrowthPct:y)/(H3DB_EMA_GROWTH_PCT)/
+  ^emaDecayPct^/?(defEmaDecayPct:y)/(H3DB_EMA_DECAY_PCT)/
+  ^emaSnapThreshold^/?(defEmaSnapThreshold:y)/(H3DB_EMA_SNAP_THRESHOLD);
+
+!!FU(ReadIniInts):P^h3Balancer_preset.ini^/^aiResourceModifiers^/
+  ^minResForReduce^/?(defMinResForReduce:y)/(H3DB_MIN_RES_FOR_REDUCE);
+
+; 3. Теперь читаем Runtime/h3Balancer_preset.ini в глобальные переменные.
+;    Если файла или какого-то ключа в Runtime нет — подставятся значения из папки мода (def...).
+!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^difficulty^/
+  ^startFromDay^/?i^h3db_startFromDay^/(defStartFromDay)/
+  ^adjustmentAmount^/?i^h3db_adjustmentAmount^/(defAdjustmentAmount);
+
+!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^smoothing^/
+  ^emaGrowthPct^/?i^h3db_emaGrowthPct^/(defEmaGrowthPct)/
+  ^emaDecayPct^/?i^h3db_emaDecayPct^/(defEmaDecayPct)/
+  ^emaSnapThreshold^/?i^h3db_emaSnapThreshold^/(defEmaSnapThreshold);
+
+!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^aiResourceModifiers^/
+  ^minResForReduce^/?i^h3db_minResForReduce^/(defMinResForReduce);
+
+; 4. Сохраняем итоговый набор ключей обратно в Runtime/h3Balancer_preset.ini
+!!FU(h3db_SavePresetToRuntime):P;
+
+
+; Сохранение текущих значений пресета в Runtime/h3Balancer_preset.ini
+; Не затрагивает h3Balancer.ini и не затирает прочие ключи в Runtime-пресете
+!?FU(h3db_SavePresetToRuntime);
+!!FU(WriteIniInts):P^Runtime/h3Balancer_preset.ini^/^difficulty^/
+  ^startFromDay^/i^h3db_startFromDay^/
+  ^adjustmentAmount^/i^h3db_adjustmentAmount^;
+
+!!FU(WriteIniInts):P^Runtime/h3Balancer_preset.ini^/^smoothing^/
+  ^emaGrowthPct^/i^h3db_emaGrowthPct^/
+  ^emaDecayPct^/i^h3db_emaDecayPct^/
+  ^emaSnapThreshold^/i^h3db_emaSnapThreshold^;
+
+!!FU(WriteIniInts):P^Runtime/h3Balancer_preset.ini^/^aiResourceModifiers^/
+  ^minResForReduce^/i^h3db_minResForReduce^;
+
+!!FU(SaveIni):P^Runtime/h3Balancer_preset.ini^;
+
+
+; Сброс пресета — удаление из Runtime и перезагрузка из папки мода
+!?FU(h3db_ResetPresetToDefault);
+; 1. Очищаем RAM-кэш и физически удаляем файл пользователя из Runtime/
+!!FU(ClearIniCache):P^Runtime/h3Balancer_preset.ini^;
+!!FU(FileExists):P^Runtime/h3Balancer_preset.ini^/?(exists:y);
+!!if&(exists)=(TRUE);
+  !!FU(DeleteFile):P^Runtime/h3Balancer_preset.ini^/?(isDeleted:y);
+!!en;
+
+; 2. Заново загружаем чистые значения из папки мода в память и пересоздаем Runtime-файл
+!!FU(h3db_LoadAndSyncPresetIni):P;

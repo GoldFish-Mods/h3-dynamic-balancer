@@ -1,0 +1,82 @@
+ZVSE2
+
+!#DC(H3DB_BUILD_ID_D) = 2;
+
+
+; Модуль обработки чат-команд с префиксом "bal"
+; Требования: ERA 3.9+, Era Erm Framework
+
+
+; 1. ПЕРЕХВАТ ЧАТА И ПАРСИНГ ПРЕФИКСА
+!?FU(OnChat)&x1=(CHAT_EVENT_TYPE_INPUT);
+!#VA(action:x) (strAddr:x) (result:x);
+
+; 1. Читаем введенную строку из памяти по адресу strAddr
+!!SN:B(strAddr)/d/?(rawInput:z);
+
+; 2. Убираем лишние пробелы по краям строки
+!!FU(Trim):P(rawInput)/?(input:z);
+!!FU&(input)=^^:E;
+
+!!FU(StrToLower):P(input)/?(lowerInput:z);
+
+; 4. Проверяем длину строки (минимально "bal " + хотя бы 1 символ = 5 символов)
+!!VR(lowerInput):M4/?(len:y);
+!!FU&(len)<5:E;
+
+; 5. Берем первые 4 символа и проверяем, что это строго "bal " (с пробелом на 4-м месте)
+!!FU(Substr):P(lowerInput)/0/4/?(prefix:z);
+!!FU&(prefix)<>^bal ^:E; [Если не "bal ", выходим — сообщение просто уйдет в обычный чат]
+
+; 6. Поглощаем сообщение, чтобы команда "bal ..." не засоряла игровой чат на экране
+!!VR(result):S(CHAT_EVENT_RESULT_CLEAR);
+
+; 7. Вырезаем всё, что идет начиная с 5-го символа (индекс 4)
+!!FU(Substr):P(lowerInput)/4/9999/?(cmdBody:z);
+!!FU(Trim):P(cmdBody)/?(cmdBody); [На случай, если после bal нажали два пробела: "bal  test"]
+
+; 8. Разделяем команду и возможные аргументы (например: "bal give 100")
+!!FU(StrPos):P(cmdBody)/^ ^/?(spacePos:y);
+
+!!if&(spacePos)=-1;
+  ; Если пробелов больше нет (например, просто "bal test")
+  !!VR(cmdName:z):S(cmdBody);
+  !!VR(cmdArgs:z):S^^;
+!!el;
+  ; Если после команды есть параметры через пробел
+  !!FU(Substr):P(cmdBody)/0/(spacePos)/?(cmdName:z);
+  !!VR(argStart:y):S(spacePos) +1;
+  !!FU(Substr):P(cmdBody)/(argStart)/9999/?(cmdArgs:z);
+  !!FU(Trim):P(cmdArgs)/?(cmdArgs);
+!!en;
+
+; 9. Передаем имя команды и её аргументы в роутер
+!!FU(bal_RouteCommand):P(cmdName)/(cmdArgs);
+
+
+
+; 2. РОУТЕР КОМАНД
+!?FU(bal_RouteCommand);
+!#VA(cmdPtr:x) (argsPtr:x);
+
+!!VR(cmd:z):Sz(cmdPtr);
+!!VR(args:z):Sz(argsPtr);
+
+!!if&(cmd)=^conf^;
+  !!FU(h3db_InitAndLoadAllConfigs):P;
+  !!IF:L^{~00FF00FF}[H3 Balancer]:{~} {~y}CONFIGS RELOADED{~}^;
+
+!!el&(cmd)=^help^;
+  !!FU(bal_CmdHelp):P;
+  !!IF:L^{~00FF00FF}[H3 Balancer]:{~} {~w}available commands:{~} {~y}conf{~} {~w}- reload data from ini{~} | {~y}help{~}^;
+
+
+!!el;
+  !!IF:L^{~00FF00FF}[H3 Balancer]:{~} {~w}UNKNOWN COMMAND{~} {~00FF00FF}'%(cmd)'{~} {~w}More details:{~} {~y}bal help{~}^;
+!!en;
+
+
+
+
+
+
