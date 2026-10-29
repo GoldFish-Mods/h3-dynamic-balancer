@@ -51,7 +51,7 @@ This mod also gives you a fighting chance to rebuild your army after losing a ma
 
 Any discovered compatibility issues will be addressed in upcoming updates whenever possible.
 
-#### Current Version Notes (0.1.3a):
+#### Current Version Notes (0.2a):
 
 - Currently, only **part of the planned functionality** is implemented. Right now, the mod regulates game pacing strictly through resources. While it has yet to reach its full potential, it already functions as a solid progression balancer between you and the AI.
 - In the current version, pacing is balanced linearly — the script continuously tweaks the AI players' resource income. This creates fairly strict control boundaries and currently lacks a natural element of randomness in how opponents develop over the course of a match.
