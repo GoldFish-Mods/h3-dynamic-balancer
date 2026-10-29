@@ -1,7 +1,7 @@
 ﻿### H3 Dynamic Balancer
 (aka h3Balancer)
 
-**Mod Version:** **0.1.4a** *(early testing stage!)*  
+**Mod Version:** **0.2a** *(early testing stage!)*  
 **Authors:** GoldFish, daemon_n
 
 A mod that dynamically adjusts the pacing and progression of AI players.
