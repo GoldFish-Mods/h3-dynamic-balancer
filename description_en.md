@@ -15,6 +15,7 @@ Based on the overall army strength of the human player compared to enemy forces,
 - Added in-game chat commands to control the mod
 - Updated the balance control algorithm
 - Various fixes and minor improvements
+- fix for a critical issue in the code (0.1.3.1a)
 
 #### What this mod helps with:
 - Smoothing out balance issues in modpacks with altered creatures, magic, and hero skills/specialties.

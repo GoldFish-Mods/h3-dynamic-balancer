@@ -74,21 +74,24 @@ ZVSE2
 !!IF&(H3DB_ISTESTING)=1:L^[H3 Dynamic Balancer] - STARTED!    |  mod ver: %s(h3db_sVer)  |  %s(h3db_BuildID)  |  logType: %i(h3db_LOG)  |  PluginVer: %s(h3db_PluginVersion) (required 0.9.2)^;
 
 !?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerDay^>1;
-!!if&i^h3db_LOG^>0;
+
   !!OW:C?(currentPlayer:y);  
 
   !!if&i^timerIsAi^;
-    !!VR(aiInfo:z):S^   PLAYER %(currentPlayer) turn...^;
-    !!FU(h3db_WriteLog):P(aiInfo)/1;
+   !!if&i^h3db_LOG^>0;
+      !!VR(aiInfo:z):S^   PLAYER %(currentPlayer) turn...^;
+      !!FU(h3db_WriteLog):P(aiInfo)/1;
+    !!en;
   !!el;
 
-
-    !!FU(h3db_WriteLog)&i^h3db_LOG^=4:P;
-    !!FU(h3db_WriteLog):P^^;
-    !!FU(h3db_WriteLog):P^ ########################################################^;
-    !!FU(h3db_WriteLog):P^^;
-    !!FU(h3db_WriteLog):P^HUMAN ROUND - new DAY %i(timerDay)   >>> LOG TYPE %i(h3db_LOG) <<<^/1;
-    !!FU(h3db_WriteLog):P^   PLAYER %(currentPlayer) turn...^/1;
+    !!if&i^h3db_LOG^>0;
+      !!FU(h3db_WriteLog)&i^h3db_LOG^=4:P;
+      !!FU(h3db_WriteLog):P^^;
+      !!FU(h3db_WriteLog):P^ ########################################################^;
+      !!FU(h3db_WriteLog):P^^;
+      !!FU(h3db_WriteLog):P^HUMAN ROUND - new DAY %i(timerDay)   >>> LOG TYPE %i(h3db_LOG) <<<^/1;
+      !!FU(h3db_WriteLog):P^   PLAYER %(currentPlayer) turn...^/1;
+    !!en;
     !!FU(h3db_ProcessAiResources)&i^timerIsAi^=0:P;
     *!FU(FreezeScreen):P;
     *!UN:R7/1/1; 
@@ -96,7 +99,7 @@ ZVSE2
     *!UN:R7/0/0; 
     *!FU(UnfreezeScreen):P;
   !!en;
-!!en;
+
 
 
 *!IF&i^timerIsAi^=0:L^OnEveryDay^;
