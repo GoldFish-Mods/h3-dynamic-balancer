@@ -1,0 +1,44 @@
+ZVSE2
+
+!#VRi^h3db_BUILD_ID_F^:S1;
+
+!?FU(huAI_OnEndOfTurn)&i^huAI_on^=(TRUE)/i^timerDay^>=i^h3db_startFromDay^/i^timerIsAi^=1;  for compatibility with Human AI
+!!FU(h3db_SaveAiResources):Pi^timerOwner^;
+
+
+!?FU(WOG_EndOfTurn)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerIsAi^=1;
+!!FU(h3db_SaveAiResources):Pi^timerOwner^;
+
+
+
+; ВЫЧИСЛЕНИЕ ЧИСТОГО БОНУСА ЗОЛОТА ИИ ОТ СТОРОННИХ МОДОВ (POST-HOOK)
+; !  moved to a this _post.erm for better compatibility with mods !
+!?FU(OnEveryDay)&(H3DB_DEBUG)=1/i^h3db_ON^=1/i^h3db_LOG^>0/i^timerDay^>=i^h3db_startFromDay^/i^timerDay^>1/i^timerIsAi^=1;
+!!OW:R(CURRENT_PLAYER)/(RES_GOLD)/?(currGold:y);
+!!VR(var:y):S(currGold) -i^h3db_evDayPersonalDelta_%i(timerOwner)^;
+!!VRi^h3db_evDayPersonalDelta_%i(timerOwner)^:S(var);
+
+!?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerDay^>1;
+!!OW:C?(currentPlayer:y);
+
+!!if&i^timerIsAi^;
+  !!if&i^h3db_LOG^>0;
+    !!VR(aiInfo:z):S^   PLAYER %(currentPlayer) turn...^;
+    !!FU(h3db_WriteLog):P(aiInfo)/1;
+  !!en;
+!!el;
+  !!if&i^h3db_LOG^>0;
+    !!FU(h3db_WriteLog)&i^h3db_LOG^=4:P;
+    !!FU(h3db_WriteLog):P^^;
+    !!FU(h3db_WriteLog):P^ ########################################################^;
+    !!FU(h3db_WriteLog):P^^;
+    !!FU(h3db_WriteLog):P^HUMAN ROUND - new DAY %i(timerDay)   >>> LOG TYPE %i(h3db_LOG) <<<^/1;
+    !!FU(h3db_WriteLog):P^   PLAYER %(currentPlayer) turn...^/1;
+  !!en;
+  !!FU(h3db_ProcessAiResources):P;
+  *!FU(FreezeScreen):P;
+  *!UN:R7/1/1; 
+  !!FU(h3db_BattleEmulator):P;
+  *!UN:R7/0/0; 
+  *!FU(UnfreezeScreen):P;
+!!en;

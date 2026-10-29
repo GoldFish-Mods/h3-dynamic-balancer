@@ -17,6 +17,13 @@ Based on the overall army strength of the human player compared to enemy forces,
 - Various fixes and minor improvements
 - fix for a critical issue in the code (0.1.4a)
 
+**0.2a** (Build ID: 9.9.2.211)
+
+- Added compatibility with the **HumanAI** mod and other third-party modifications.
+- Improved balancer compatibility with the HumanAI handicap.
+- Fixed compatibility with WoG options.
+- Various logging improvements.
+
 #### What this mod helps with:
 - Smoothing out balance issues in modpacks with altered creatures, magic, and hero skills/specialties.
 - Leveling the playing field on maps where terrain layout or economic imbalance gives the AI an overwhelming advantage as early as the first month.
@@ -39,8 +46,8 @@ This mod also gives you a fighting chance to rebuild your army after losing a ma
 
 - Recommended ERA build version: 2.2+
 - ERA 3.9+, Era Erm Framework
-- Tested with almost all built-in WoG options, including Creature Experience, with no issues found so far.
-- **Warning!** This mod has not yet been tested with major third-party overhaul mods (such as ACM, Difficulty Mod, etc.).
+- Added compatibility with **HumanAI** (as of version 0.2a).
+- **Warning!** This mod has not yet been tested with other third-party modifications (such as ACM, Difficulty Mod, etc.).
 
 Any discovered compatibility issues will be addressed in upcoming updates whenever possible.
 

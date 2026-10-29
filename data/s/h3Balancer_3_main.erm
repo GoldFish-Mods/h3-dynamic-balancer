@@ -2,8 +2,7 @@ ZVSE2
 ; проблемы:
 ; не учитывает гарнизоны из которых нельзя забирать существ
 ; ручной контроль массивов, перевести на SN:F^ExtendArrayLifetime^ ?
-
-
+; опция !UN:P201 script48 Артилерия не совмесим с эмулятором, при включении может давать разные результаты в эмуляторе и в автобоях сразу
 
 ; Bug Fixes ----------------------
 
@@ -13,15 +12,13 @@ ZVSE2
 
 ; Master Build Info --------------
 
-!#DC(H3DB_VERSION) = 2;
-!#VRs^h3db_sVer^:S^0.1.3a^;
+!#DC(H3DB_VERSION) = 3;
+!#VRs^h3db_sVer^:S^0.2a^;
 
 
-!#DC(H3DB_BUILD_ID_A) = 8;  [Внутренний номер части скрипта]
+!#DC(H3DB_BUILD_ID_A) = 9;  [Внутренний номер части скрипта]
 
 !#DC(H3DB_ISTESTING) = 1;  [displaying debug data in a release build]
-
-!#DC(H3DB_DEBUG) = 0; 
 
 ; ---------------------------------
 
@@ -32,7 +29,7 @@ ZVSE2
 !#VRi^h3db_ON^:S0;
 
 !?FU(OnAfterErmInstructions);
-!!VRs^h3db_BuildID^:S^Build ID: %(H3DB_BUILD_ID_A).%(H3DB_BUILD_ID_B).%(H3DB_BUILD_ID_C).%(H3DB_BUILD_ID_D)^;
+!!VRs^h3db_BuildID^:S^Build ID: %(H3DB_BUILD_ID_A).%(H3DB_BUILD_ID_B).%(H3DB_BUILD_ID_C).%(H3DB_BUILD_ID_D)%(H3DB_BUILD_ID_E)%i(h3db_BUILD_ID_F)^;
 *!VRi^h3db_LOG^:S(H3DB_LOG); load from ini..
 !!VRi^h3db_ON^:S1;
 !!FU(h3db_GetPluginVersion):P?s^h3db_PluginVersion^;
@@ -56,12 +53,12 @@ ZVSE2
 
 
 
-!?FU(WOG_EndOfTurn)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerIsAi^=1;
-!!FU(h3db_SaveAiResources):Pi^timerOwner^;
+
+
 *!IF:L^WOG_EndOfTurn^;
 
 !?FU(WOG_EndOfTurn)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerIsAi^=0;
-  !!if&i^h3db_LOG^>0;
+!!if&i^h3db_LOG^>0;
   !!FU(h3db_WriteLog):P^^;
   !!FU(h3db_WriteLog):P^###  change of day ... ###^/1;
   !!FU(h3db_WriteLog):P^^;
@@ -71,41 +68,8 @@ ZVSE2
 
 
 !?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^=1/i^timerIsAi^=0;
-!!IF&(H3DB_ISTESTING)=1:L^[H3 Dynamic Balancer] - STARTED!    |  mod ver: %s(h3db_sVer)  |  %s(h3db_BuildID)  |  logType: %i(h3db_LOG)  |  PluginVer: %s(h3db_PluginVersion) (required 0.9.2)^;
+!!IF&(H3DB_ISTESTING)=1:L^[H3 Balancer] - STARTED !  |  mod ver: %s(h3db_sVer)  |  %s(h3db_BuildID)  |  logType: %i(h3db_LOG)  |  PluginVer: %s(h3db_PluginVersion) (required 0.9.2)^;
 
-!?FU(OnEveryDay)&i^h3db_ON^=1/i^timerDay^>=i^h3db_startFromDay^/i^timerDay^>1;
-
-  !!OW:C?(currentPlayer:y);  
-
-  !!if&i^timerIsAi^;
-   !!if&i^h3db_LOG^>0;
-      !!VR(aiInfo:z):S^   PLAYER %(currentPlayer) turn...^;
-      !!FU(h3db_WriteLog):P(aiInfo)/1;
-    !!en;
-  !!el;
-
-    !!if&i^h3db_LOG^>0;
-      !!FU(h3db_WriteLog)&i^h3db_LOG^=4:P;
-      !!FU(h3db_WriteLog):P^^;
-      !!FU(h3db_WriteLog):P^ ########################################################^;
-      !!FU(h3db_WriteLog):P^^;
-      !!FU(h3db_WriteLog):P^HUMAN ROUND - new DAY %i(timerDay)   >>> LOG TYPE %i(h3db_LOG) <<<^/1;
-      !!FU(h3db_WriteLog):P^   PLAYER %(currentPlayer) turn...^/1;
-    !!en;
-    !!FU(h3db_ProcessAiResources)&i^timerIsAi^=0:P;
-    *!FU(FreezeScreen):P;
-    *!UN:R7/1/1; 
-    !!FU(h3db_BattleEmulator):P;
-    *!UN:R7/0/0; 
-    *!FU(UnfreezeScreen):P;
-  !!en;
-
-
-
-*!IF&i^timerIsAi^=0:L^OnEveryDay^;
-
-
-*!IF:L^ai 0  %(finalRes)^;
 
 
 
@@ -119,49 +83,6 @@ ZVSE2
 !#VA(key:x);
 !!VRi^key2^&(key)=89:S0;
 ; FOR DEBUG  END ------------------------------
-
-
-!?FU(OnAdventureMapLeftMouseClick)&(H3DB_DEBUG)=1/i^key2^=89; / Y key
-!!FU:E;
-
-!!FU(h3db_ResetAiHistory):P;
-!!FU(h3db_ResetAiResourceModifiers):P;
-!!VRi^h3db_LOG^:S1;
-!!IF:M^players data has been cleaned !^;
-
-
-
-!?FU(OnAdventureMapLeftMouseClick)&(H3DB_DEBUG)=1/i^key_ctrl^/i^timerIsAi^=0/999;
-
-!!IF:M^ = %i(h3db_isSinglePlayer)^;
-!!FU:E;
-; Перечитываем оба конфига с диска в память (для проверки Live-Reload)
-*!FU(h3db_InitAndLoadAllConfigs):P;
-
-; Выводим текущие значения из переменных в диалог
-!!IF:M^{~Gold}Current Settings in Memory (H3Balancer){~}
-
-{~83E7FFFF}1. From mod folder (h3Balancer.ini):{~}
-logToFile = {%i(h3db_LOG)}
-
-{~83E7FFFF}2. From Runtime (h3Balancer_preset.ini):{~}
-[difficulty]
-startFromDay = {%i(h3db_startFromDay)}
-adjustmentAmount = {%i(h3db_adjustmentAmount)}
-
-[smoothing]
-emaGrowthPct = {%i(h3db_emaGrowthPct)}
-emaDecayPct = {%i(h3db_emaDecayPct)}
-emaSnapThreshold = {%i(h3db_emaSnapThreshold)}
-
-[aiResourceModifiers]
-minResForReduce = {%i(h3db_minResForReduce)}^;
-
-
-
-*!IF:M^= %(str)^;
-*!FU(h3db_WriteLog):P^text^;
-; OFF
 
 
 
@@ -185,24 +106,15 @@ minResForReduce = {%i(h3db_minResForReduce)}^;
 
 ; ЭТАП 1: Поиск чемпионов, бэкапы и слияние
 !!re (currPlayer:y)/0/(PLAYER_LAST);
-  ; Получаем сразу и статус ИИ, и статус "жив/мертв" (has_lost)
   !!OW:I(currPlayer)/?(isAi:y)/?(isDead:y);
-  
-  ; Проверяем, что игрок еще жив
   !!if&(isDead)=0;
     !!FU(h3db_PlayerId_GetMostPowerfullHeroId):P(currPlayer)/?(strongestHeroId:y);
-    
     !!if&(strongestHeroId)>-1;
-      
-      ; Если это человек - запоминаем его героя в переменную
       !!if&(isAi)=0;
         !!VR(humanHero):S(strongestHeroId);
-      ; Если это ИИ - пушим его героя в наш новый массив чемпионов
       !!el;
         !!FU(Array_Push):P(aiChampionsArr)/(strongestHeroId);
       !!en;
-      
-      ; Делаем бэкап и слияние
       !!FU(h3db_CreateArmyBackup):P(strongestHeroId)/(armyBackup);
       !!VR(heroSlot:y):S-1;
       !!VR(townId:y):S-1;
@@ -235,18 +147,17 @@ minResForReduce = {%i(h3db_minResForReduce)}^;
   ; Если есть хотя бы один чемпион ИИ в турнирной сетке
   !!if&(lastIdx)>=0;
     !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^^;
-
         ; формируем тип земли для битвы на ней
         !!TR0/0/0:T?(type:y)/?(sub:y)/?(riv:y)/?(rivDir:y)/?(road:y)/?(roadDir:y)/?(magic:y)/?(flags:y);
         !!TR0/0/0:T1/0/0/0/0/0/0/0;
         !!UN:P760/?(optionAchievStatus:y);!!UN:P760/0; опция "достижения" выкл
         !!UN:P207/?(option207:y);!!UN:P35/?(option35:y);!!UN:P207/0;!!VRi^wog_207_enabled^:S0;!!UN:P35/0;!!VRi^wog_35_enabled^:S0;  ; навыки мистицизма ВЫКЛ
+        !!UN:P201/?(option201:y);!!UN:P201/0;!!VRi^wog_201_enabled^:S0; артилерия
 
     !!re (idx:y)/0/(lastIdx);
       ; 1. Извлекаем чемпиона ИИ из массива турнирной сетки и узнаем его владельца
       !!SN:M(aiChampionsArr)/(idx)/?(aiHero:y);
       !!HE(aiHero):O?(heroOwner:y);
-
       !!if&i^h3db_LOG^>0;
         !!FU(GetTextFileString):P^plcolors.txt^/(heroOwner)/?(heroOwnerStr:z);
         !!HE(aiHero):B0/?(heroName:z);
@@ -280,14 +191,12 @@ minResForReduce = {%i(h3db_minResForReduce)}^;
 
       ; 5. Корректируем перевес стратегическими факторами (артефакты / заклинания)
       !!FU(h3db_ApplyStrategicAdvantage):P(humanHero)/(aiHero)/(overbalanceMag)/?(finalMag:y);
-      *!VR(finalMag:y):S(overbalanceMag);  ВРЕМЕННО ПЕРЕКИДЫВАЕМ МАГНИТУДУ ПОКА НЕ ИСПОЛЬЗУЕМ ApplyStrategicAdvantage
 
       ; 6. Сглаживаем величину перевеса (безмассивное инерционное сглаживание EMA)
       !!FU(h3db_SmoothOverbalance):P(aiHero)/(finalMag)/?(smoothedMag:y);
 
       ; 7. Применяем штрафы или бонусы к экономике ИИ
       !!FU(h3db_ApplyAIDifficultyMod):P(aiHero)/(smoothedMag);
-
       !!if&i^h3db_LOG^=-1;
         !!HE(aiHero):O?(aiColor:y);
         !!FU(GetTextFileString):P^plcolors.txt^/(aiColor)/?(aiSideStr:z);
@@ -304,6 +213,7 @@ minResForReduce = {%i(h3db_minResForReduce)}^;
       !!TR0/0/0:T(type)/(sub)/(riv)/(rivDir)/(road)/(roadDir)/(magic)/(flags);
       !!UN:P760/(optionAchievStatus); опция "достижения" выкл
       !!UN:P207/(option207);!!VRi^wog_207_enabled^:S(option207);!!UN:P35/(option35);!!VRi^wog_35_enabled^:S(option35);  ; навыки мистицизма ВКЛ
+      !!UN:P201/(option201);!!VRi^wog_201_enabled^:S(option201);
   !!en;
 !!en;
 
@@ -315,3 +225,4 @@ minResForReduce = {%i(h3db_minResForReduce)}^;
 ; 8. Восстанавливаем резервную копию армий
 !!FU(h3db_RestoreArmyBackup):P(armyBackup);
 !!FU(h3db_WriteLog)&i^h3db_LOG^>0:P^RestoreArmyBackup: DONE^/1;
+

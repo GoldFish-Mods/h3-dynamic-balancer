@@ -63,7 +63,7 @@ ZVSE2
 !!VR(args:z):Sz(argsPtr);
 
 !!if&(cmd)=^conf^;
-  !!FU(h3db_InitAndLoadAllConfigs):P;
+  !!FU(h3db_InitAndLoadAllConfigs):P1;
   !!IF:L^{~00FF00FF}[H3 Balancer]:{~} {~y}CONFIGS RELOADED{~}^;
 
 !!el&(cmd)=^help^;

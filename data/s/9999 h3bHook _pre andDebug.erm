@@ -1,0 +1,58 @@
+ZVSE2
+
+!#DC(H3DB_BUILD_ID_E) = 1; 
+
+
+!#DC(H3DB_DEBUG) = 0; 
+
+
+; ПЕРЕХВАТ БАЛАНСА ЗОЛОТА ИИ ДО РАБОТЫ СТОРОННИХ МОДОВ (PRE-HOOK)
+!?FU(OnEveryDay)&(H3DB_DEBUG)=1/i^h3db_ON^=1/i^h3db_LOG^>0/i^timerDay^>=i^h3db_startFromDay^/i^timerDay^>1/i^timerIsAi^=1;
+!!OW:R(CURRENT_PLAYER)/(RES_GOLD)/?i^h3db_evDayPersonalDelta_%i(timerOwner)^;
+
+
+!?FU(OnAdventureMapLeftMouseClick)&(H3DB_DEBUG)=1/i^key2^=89; / Y key
+*!FU:E;
+
+!!FU(h3db_ResetAiHistory):P;
+!!FU(h3db_ResetAiResourceModifiers):P;
+!!VRi^h3db_LOG^:S1;
+!!IF:M^players data has been cleaned !^;
+
+
+
+!?FU(OnAdventureMapLeftMouseClick)&(H3DB_DEBUG)=1/i^key_ctrl^/i^timerIsAi^=0/999;
+
+
+!!FU:E;
+!!IF:L^ BattleEmulator...^;
+!!FU(h3db_BattleEmulator):P;
+
+
+; Перечитываем оба конфига с диска в память (для проверки Live-Reload)
+*!FU(h3db_InitAndLoadAllConfigs):P;
+
+; Выводим текущие значения из переменных в диалог
+!!IF:M^{~Gold}Current Settings in Memory (H3Balancer){~}
+
+{~83E7FFFF}1. From mod folder (h3Balancer.ini):{~}
+logToFile = {%i(h3db_LOG)}
+
+{~83E7FFFF}2. From Runtime (h3Balancer_preset.ini):{~}
+[difficulty]
+startFromDay = {%i(h3db_startFromDay)
+adjustmentAmount = {%i(h3db_adjustmentAmount)}
+
+[smoothing]
+emaGrowthPct = {%i(h3db_emaGrowthPct)}
+emaDecayPct = {%i(h3db_emaDecayPct)}
+emaSnapThreshold = {%i(h3db_emaSnapThreshold)}
+
+[aiResourceModifiers]
+minResForReduce = {%i(h3db_minResForReduce)}^;
+
+
+
+*!IF:M^= %(str)^;
+*!FU(h3db_WriteLog):P^text^;
+; OFF

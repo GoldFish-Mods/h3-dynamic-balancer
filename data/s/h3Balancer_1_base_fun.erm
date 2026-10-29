@@ -1,6 +1,6 @@
 ZVSE2
 
-!#DC(H3DB_BUILD_ID_B) = 8;
+!#DC(H3DB_BUILD_ID_B) = 9;
 
 
 
@@ -1108,6 +1108,7 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
       !!OW:R(player)/(res)/?(currentRes:y);
       !!VR(oldRes:y):Si^h3db_aiOldRes_%(player)_%(res)^;
       !!VR(income:y):S(currentRes) -(oldRes);
+      !!VR(baseDayInc:y):S(income);
       !!VR(finalRes:y):S(currentRes);
 
       ; Если модификатор не нулевой — рассчитываем дельту
@@ -1119,8 +1120,8 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
             !!VR(absPct:y):S0 -(pct);
             !!FU(h3db_CutPercent):P(income)/(absPct)/?(newIncome:y);
             ; ЗАЩИТА: не даем обнулить доход при запасах ниже порога (кроме золота)
-            !!if&(res)<>(RES_GOLD)/(oldRes) < i^h3db_minResForReduce^;
-            !!VR(newIncome)&(newIncome)<1:S1;
+            !!if&(res)<>(RES_GOLD)/(oldRes)<i^h3db_minResForReduce^;
+              !!VR(newIncome)&(newIncome)<1:S1;
             !!en;
           ; Положительный процент: прибавление
           !!el;
@@ -1179,7 +1180,39 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
 
         ; Собираем итоговый блок ресурса
         !!VR(logText):+^%(resCode) [%(incStr) %(pad)%(finalRes)]^;
-        !!VR(logText)&(res)<(RES_LAST_SOD):+^    ^;
+        !!if&(res)<(RES_LAST_SOD);
+          !!VR(logText):+^    ^;
+        !!el&(H3DB_DEBUG)=1;
+          ; Доп. отладочная информация для золота
+          !!VR(balDelta:y):S(finalRes) -(currentRes);
+          !!VR(evDayDelta:y):Si^h3db_evDayPersonalDelta_%(player)^;
+          !!VRi^h3db_evDayPersonalDelta_%(player)^:S0;
+
+          ; --- РАСЧЕТ НЕЗАРЕГИСТРИРОВАННОЙ ДЕЛЬТЫ МЕЖДУ ХОДАМИ ---
+          !!VR(prevFinal:y):Si^h3db_prevFinalGold_%(player)^;
+          !!VR(unregStr:z):S^^;
+          ; Выводим скобку только если у нас уже есть сохраненный итог прошлого дня (>0)
+          !!if&(prevFinal)>0;
+            !!VR(unregDelta:y):S(oldRes) -(prevFinal);
+            !!VR(uSign:z):S^^;
+            !!VR(uSign)&(unregDelta)>=0:S^+^;
+            !!VR(unregStr):S^ (%(prevFinal)%(uSign)%(unregDelta)?)^;
+          !!en;
+          ; Запоминаем текущий итоговый баланс (finalRes) для следующего дня
+          !!VRi^h3db_prevFinalGold_%(player)^:S(finalRes);
+          ; -------------------------------------------------------
+
+          !!VR(evSign:z):S^^;
+          !!VR(evSign)&(evDayDelta)>0:S^+^;
+
+          !!VR(sign):S^^;
+          !!VR(sign)&(baseDayInc)>0:S^+^;
+          !!VR(logText):+^ <oldAiRes:%(oldRes)%(unregStr) (evDayPersonalDelta:%(evSign)%(evDayDelta)) baseDayInc:%(sign)%(baseDayInc) preBalRes:%(currentRes)^;
+
+          !!VR(sign):S^^;
+          !!VR(sign)&(balDelta)>0:S^+^;
+          !!VR(logText):+^ balDayDelta:%(sign)%(balDelta)>^;
+        !!en;
       !!en;
     !!en;
 
@@ -1193,12 +1226,17 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
   !!FU(h3db_WriteLog):P(headerText)/1;
 !!en;
 
-
 !?FU(h3db_ResetAiResourceModifiers);
 !!re (player:y)/(PLAYER_FIRST)/(PLAYER_LAST);
   !!VRi^h3db_aiResGold_%(player)_pctModifier^:S0;
   !!VRi^h3db_aiResAll_%(player)_pctModifier^:S0;
+  !!VRi^h3db_evDayPersonalDelta_%(player)^:S0;
+  !!VRi^h3db_prevFinalGold_%(player)^:S0; [Сброс истории итогового золота]
+  !!re (res:y)/(RES_FIRST)/(RES_LAST_SOD);
+    !!VRi^h3db_aiOldRes_%(player)_%(res)^:S0;
+  !!en;
 !!en;
+
 
 
 ; ф-ция для получения армии в виде массива после битвы
@@ -1275,10 +1313,12 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
 
 ; инициализация и чтение обоих INI-файлов
 !?FU(h3db_InitAndLoadAllConfigs);
+!#VA(forceFromMod:x);
+
 ; 1. Читаем основной конфиг напрямую из папки мода (без записи в Runtime)
 !!FU(h3db_LoadMainModIni):P;
-; 2. Синхронизируем и читаем файл пресета (приоритет у Runtime/h3Balancer_preset.ini)
-!!FU(h3db_LoadAndSyncPresetIni):P;
+; 2. Синхронизируем и читаем файл пресета (при forceFromMod=1 приоритет у папки мода)
+!!FU(h3db_LoadAndSyncPresetIni):P(forceFromMod);
 
 ; Чтение базового h3Balancer.ini (Только из папки мода)
 ; Если файл удален — автоматически подставляются константы H3DB_...
@@ -1297,41 +1337,45 @@ emaSnapThreshold(%i(h3db_emaSnapThreshold)),  minResForReduce(%i(h3db_minResForR
 ;   2. Дозапись новых ключей из папки мода при их отсутствии после обновления
 ;   3. Защиту константами и авто-генерацию файла, если удалены оба INI
 !?FU(h3db_LoadAndSyncPresetIni);
+!#VA(forceFromMod:x); [Если передан 1 — принудительно берем значения из папки мода и перезаписываем Runtime]
+
 ; 1. Очищаем кэш обоих файлов пресета
 !!FU(ClearIniCache):P^Runtime/h3Balancer_preset.ini^;
 !!FU(ClearIniCache):P^h3Balancer_preset.ini^;
 
-; 2. Сначала читаем эталонный пресет из папки мода во временные переменные.
+; 2. Сначала читаем пресет из папки мода сразу в глобальные переменные.
 ;    Если файла в папке мода нет — подставятся константы H3DB_...
 !!FU(ReadIniInts):P^h3Balancer_preset.ini^/^difficulty^/
-  ^startFromDay^/?(defStartFromDay:y)/(H3DB_START_FROM_DAY)/
-  ^adjustmentAmount^/?(defAdjustmentAmount:y)/(H3DB_ADJUSTMENT_AMOUNT);
+  ^startFromDay^/?i^h3db_startFromDay^/(H3DB_START_FROM_DAY)/
+  ^adjustmentAmount^/?i^h3db_adjustmentAmount^/(H3DB_ADJUSTMENT_AMOUNT);
 
 !!FU(ReadIniInts):P^h3Balancer_preset.ini^/^smoothing^/
-  ^emaGrowthPct^/?(defEmaGrowthPct:y)/(H3DB_EMA_GROWTH_PCT)/
-  ^emaDecayPct^/?(defEmaDecayPct:y)/(H3DB_EMA_DECAY_PCT)/
-  ^emaSnapThreshold^/?(defEmaSnapThreshold:y)/(H3DB_EMA_SNAP_THRESHOLD);
+  ^emaGrowthPct^/?i^h3db_emaGrowthPct^/(H3DB_EMA_GROWTH_PCT)/
+  ^emaDecayPct^/?i^h3db_emaDecayPct^/(H3DB_EMA_DECAY_PCT)/
+  ^emaSnapThreshold^/?i^h3db_emaSnapThreshold^/(H3DB_EMA_SNAP_THRESHOLD);
 
 !!FU(ReadIniInts):P^h3Balancer_preset.ini^/^aiResourceModifiers^/
-  ^minResForReduce^/?(defMinResForReduce:y)/(H3DB_MIN_RES_FOR_REDUCE);
+  ^minResForReduce^/?i^h3db_minResForReduce^/(H3DB_MIN_RES_FOR_REDUCE);
 
-; 3. Теперь читаем Runtime/h3Balancer_preset.ini в глобальные переменные.
-;    Если файла или какого-то ключа в Runtime нет — подставятся значения из папки мода (def...).
-!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^difficulty^/
-  ^startFromDay^/?i^h3db_startFromDay^/(defStartFromDay)/
-  ^adjustmentAmount^/?i^h3db_adjustmentAmount^/(defAdjustmentAmount);
+; 3. Если это НЕ принудительная перезагрузка из папки мода (forceFromMod <> 1),
+;    читаем поверх бэкап из Runtime/h3Balancer_preset.ini.
+;    Если какого-то ключа в Runtime нет — останется значение из папки мода, прочитанное на Шаге 2.
+!!if&(forceFromMod)<>1;
+  !!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^difficulty^/
+    ^startFromDay^/?i^h3db_startFromDay^/i^h3db_startFromDay^/
+    ^adjustmentAmount^/?i^h3db_adjustmentAmount^/i^h3db_adjustmentAmount^;
 
-!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^smoothing^/
-  ^emaGrowthPct^/?i^h3db_emaGrowthPct^/(defEmaGrowthPct)/
-  ^emaDecayPct^/?i^h3db_emaDecayPct^/(defEmaDecayPct)/
-  ^emaSnapThreshold^/?i^h3db_emaSnapThreshold^/(defEmaSnapThreshold);
+  !!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^smoothing^/
+    ^emaGrowthPct^/?i^h3db_emaGrowthPct^/i^h3db_emaGrowthPct^/
+    ^emaDecayPct^/?i^h3db_emaDecayPct^/i^h3db_emaDecayPct^/
+    ^emaSnapThreshold^/?i^h3db_emaSnapThreshold^/i^h3db_emaSnapThreshold^;
 
-!!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^aiResourceModifiers^/
-  ^minResForReduce^/?i^h3db_minResForReduce^/(defMinResForReduce);
+  !!FU(ReadIniInts):P^Runtime/h3Balancer_preset.ini^/^aiResourceModifiers^/
+    ^minResForReduce^/?i^h3db_minResForReduce^/i^h3db_minResForReduce^;
+!!en;
 
 ; 4. Сохраняем итоговый набор ключей обратно в Runtime/h3Balancer_preset.ini
 !!FU(h3db_SavePresetToRuntime):P;
-
 
 ; Сохранение текущих значений пресета в Runtime/h3Balancer_preset.ini
 ; Не затрагивает h3Balancer.ini и не затирает прочие ключи в Runtime-пресете
